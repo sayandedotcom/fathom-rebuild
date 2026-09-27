@@ -4,7 +4,7 @@ A minimal, Fathom-style AI meeting assistant.
 
 ## What it does
 
-Upload a meeting recording (audio or video, up to 500MB and 2 hours). Fanthom transcribes it with speaker labels, writes a summary with key points, decisions and action items, and lets you ask questions about the meeting in a chat that cites timestamps. Every meeting is kept in a searchable library. A search hit links to the exact moment in the recording.
+Upload a meeting recording (audio or video, up to 500MB and 2 hours), or record one in the browser (your mic plus a shared meeting tab). Fanthom transcribes it with speaker labels, writes a summary with key moments, key points, decisions and action items (copyable as Markdown), and lets you ask questions about the meeting in a chat that cites timestamps. Every meeting is kept in a searchable library. A search hit links to the exact moment in the recording.
 
 Core loop: **upload → diarized transcript → AI summary + action items → ask questions → find past meetings**.
 
@@ -15,7 +15,7 @@ https://fanthom-xi.vercel.app
 ## Architecture
 
 ```
-Browser ──pick file──► Vercel Blob (client upload via /api/blob/upload)
+Browser ──pick file / record──► Vercel Blob (client upload via /api/blob/upload)
    │ POST /api/meetings {title, audioUrl, durationSec}
    ▼
 meetings(status=transcribing) ──► AssemblyAI transcript (speaker_labels, webhook_url?secret=…)
@@ -59,7 +59,7 @@ npm test                    # vitest: pure transcript, search and validation hel
 
 ## Trade-offs
 
-- **File upload is the primary input.** Browser recording (mic + shared meeting tab) is the next step. Upload is the path that is guaranteed to work in any browser.
+- **File upload is the primary input; browser recording is an extra.** Upload works in any browser. Recording mixes the mic and a shared tab's audio into one track. It depends on the browser supporting tab-audio capture (Chrome does). If no tab audio is shared, it records the mic only and shows a warning.
 - **No bot joins calls.** Joining Zoom or Meet as a bot is a large project of its own and outside the scope of a 24h build.
 - **Chat puts the full transcript in the prompt instead of using RAG.** A 2-hour meeting is roughly 30k tokens, well within Claude's context window. No retrieval step also means no missed context and no vector infrastructure.
 - **Search is Postgres full-text search, not semantic search.** English stemming means "pricing" matches "price", but word families with different stems don't match each other ("decision" does not find "decided"). Each hit deep-links to the moment in the recording.
@@ -71,10 +71,8 @@ npm test                    # vitest: pure transcript, search and validation hel
 
 ## What I'd do next
 
-- Clickable `[mm:ss]` citations in chat that seek the audio
-- A step-by-step processing indicator and a Retry button for failed meetings
-- Browser recording: the mic mixed with a shared meeting tab
-- Key moments: a clickable list of highlights
-- Visual polish: loading skeletons and a copy-summary-as-Markdown button
-- A fuller test suite, including `advanceMeeting` concurrency with mocked clients
-- Richer search (speaker and date filters); integrations such as Slack, a CRM, or calendar
+- A fuller test suite, including `advanceMeeting` concurrency tests with mocked clients
+- Richer search: speaker and date filters, and semantic search alongside full-text
+- Persisted chat history, and editable, shareable action items
+- Integrations: Slack or email recaps, CRM notes, calendar-based naming
+- Auth and per-user libraries
