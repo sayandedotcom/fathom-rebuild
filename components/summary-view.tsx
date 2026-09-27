@@ -1,9 +1,25 @@
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { timestampToMs } from '@/lib/chat/citations';
+import { summaryToMarkdown } from '@/lib/summary-markdown';
 import type { Summary } from '@/lib/summary-schema';
 
-export function SummaryView({ summary, onSeek }: { summary: Summary; onSeek: (ms: number) => void }) {
+export function SummaryView({ title, summary, onSeek }: { title: string; summary: Summary; onSeek: (ms: number) => void }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    await navigator.clipboard.writeText(summaryToMarkdown(title, summary));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
   return (
     <div className="space-y-5 text-sm">
+      <Button size="sm" variant="outline" onClick={copy}>
+        {copied ? 'Copied' : 'Copy as Markdown'}
+      </Button>
       <p className="leading-relaxed">{summary.overview}</p>
       {(summary.keyMoments ?? []).length > 0 && (
         <Section title="Key moments">

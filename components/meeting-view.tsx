@@ -106,7 +106,7 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
   const inProgress = meeting.status === 'transcribing' || meeting.status === 'summarizing';
 
   return (
-    <main className="mx-auto max-w-7xl space-y-4 p-6">
+    <main className="mx-auto w-full max-w-7xl space-y-4 p-6">
       <header className="space-y-1">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold">{meeting.title}</h1>
@@ -133,19 +133,21 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
         </div>
       )}
 
-      <audio
-        ref={audioRef}
-        src={meeting.audioUrl}
-        controls
-        preload="metadata"
-        className="w-full"
-        onTimeUpdate={(e) => setCurrentMs(e.currentTarget.currentTime * 1000)}
-      />
+      <div className="sticky top-0 z-10 bg-background py-2">
+        <audio
+          ref={audioRef}
+          src={meeting.audioUrl}
+          controls
+          preload="metadata"
+          className="w-full"
+          onTimeUpdate={(e) => setCurrentMs(e.currentTarget.currentTime * 1000)}
+        />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr_380px]">
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Summary</h2>
-          {meeting.summary ? <SummaryView summary={meeting.summary} onSeek={seek} /> : <p className="text-sm text-muted-foreground">Not available yet.</p>}
+          {meeting.summary ? <SummaryView title={meeting.title} summary={meeting.summary} onSeek={seek} /> : <p className="text-sm text-muted-foreground">Not available yet.</p>}
         </section>
         <section className="space-y-3 lg:max-h-[75vh] lg:overflow-y-auto">
           <h2 className="text-lg font-semibold">Transcript</h2>

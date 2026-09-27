@@ -14,7 +14,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   const query = typeof q === 'string' ? q.trim() : '';
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6">
+    <main className="mx-auto w-full max-w-4xl space-y-6 p-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">Meetings</h1>
         <Link href="/new" className={buttonVariants()}>
@@ -48,8 +48,8 @@ async function MeetingList() {
       {rows.map((m) => (
         <li key={m.id}>
           <Link href={`/meetings/${m.id}`} className="flex items-center justify-between gap-4 p-3 hover:bg-muted">
-            <span className="font-medium">{m.title}</span>
-            <span className="flex items-center gap-3 text-sm text-muted-foreground">
+            <span className="min-w-0 truncate font-medium">{m.title}</span>
+            <span className="flex shrink-0 items-center gap-3 text-sm text-muted-foreground">
               {m.durationSec !== null && formatTimestamp(m.durationSec * 1000)}
               <span>{m.createdAt.toLocaleDateString()}</span>
               <Badge variant={m.status === 'failed' ? 'destructive' : 'secondary'}>{m.status}</Badge>
