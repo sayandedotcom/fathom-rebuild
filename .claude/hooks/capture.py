@@ -218,8 +218,9 @@ def ensure_log(logdir, sid, st, entries, exclude_last_prompt=None):
             and not past[-1]["response"]:
         past = past[:-1]
     first_ts = past[0]["prompt_ts"] if past else utc_now()
+    known_model = last_model(entries) or st.get("model")  # SessionStart may have set it
     st.clear()
-    st["model"] = last_model(entries) or st.get("model")
+    st["model"] = known_model
     for t in past:
         body += add_prompt(st, sid, t["prompt_ts"], t["model"], t["prompt"])
         for q_ts, q_text in t["queued"]:
@@ -240,6 +241,7 @@ def on_session_start(payload, sid, st):
         model = model.get("id") or model.get("display_name")
     if model:
         st["model"] = model
+    st["session_start_keys"] = sorted(payload)  # which fields this Claude Code version sends
 
 
 def on_prompt(payload, sid, st, logdir):
