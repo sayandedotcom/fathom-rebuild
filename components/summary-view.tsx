@@ -1,9 +1,27 @@
+import { timestampToMs } from '@/lib/chat/citations';
 import type { Summary } from '@/lib/summary-schema';
 
-export function SummaryView({ summary }: { summary: Summary }) {
+export function SummaryView({ summary, onSeek }: { summary: Summary; onSeek: (ms: number) => void }) {
   return (
     <div className="space-y-5 text-sm">
       <p className="leading-relaxed">{summary.overview}</p>
+      {(summary.keyMoments ?? []).length > 0 && (
+        <Section title="Key moments">
+          <ul className="space-y-1">
+            {(summary.keyMoments ?? []).map((k, i) => {
+              const ms = timestampToMs(k.timestamp);
+              return (
+                <li key={i}>
+                  {ms !== null ? (
+                    <button type="button" onClick={() => onSeek(ms)} className="mr-2 font-mono text-xs text-muted-foreground hover:underline">{k.timestamp}</button>
+                  ) : null}
+                  {k.label}
+                </li>
+              );
+            })}
+          </ul>
+        </Section>
+      )}
       <Section title="Action items">
         {summary.actionItems.length === 0 ? (
           <p className="text-muted-foreground">No action items.</p>

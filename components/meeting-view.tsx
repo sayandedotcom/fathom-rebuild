@@ -145,7 +145,7 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
       <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr_380px]">
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Summary</h2>
-          {meeting.summary ? <SummaryView summary={meeting.summary} /> : <p className="text-sm text-muted-foreground">Not available yet.</p>}
+          {meeting.summary ? <SummaryView summary={meeting.summary} onSeek={seek} /> : <p className="text-sm text-muted-foreground">Not available yet.</p>}
         </section>
         <section className="space-y-3 lg:max-h-[75vh] lg:overflow-y-auto">
           <h2 className="text-lg font-semibold">Transcript</h2>

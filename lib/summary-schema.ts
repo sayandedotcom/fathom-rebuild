@@ -13,6 +13,9 @@ export const summarySchema = z.object({
       }),
     )
     .describe('Concrete follow-up tasks; empty if none'),
+  keyMoments: z
+    .array(z.object({ timestamp: z.string().describe('Timestamp of the moment exactly as in the transcript, e.g. 12:04'), label: z.string() }))
+    .describe('3-8 moments worth jumping to: decisions, disagreements, commitments'),
 });
 
 export type Summary = z.infer<typeof summarySchema>;
@@ -22,4 +25,5 @@ export const EMPTY_SUMMARY: Summary = {
   keyPoints: [],
   decisions: [],
   actionItems: [],
+  keyMoments: [],
 };
