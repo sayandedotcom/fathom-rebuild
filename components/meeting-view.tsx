@@ -137,7 +137,7 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Ask about this meeting</h2>
           {meeting.status === 'ready' ? (
-            <ChatPanel meetingId={meeting.id} />
+            <ChatPanel meetingId={meeting.id} onSeek={seek} />
           ) : (
             <p className="text-sm text-muted-foreground">Chat is available once processing finishes.</p>
           )}

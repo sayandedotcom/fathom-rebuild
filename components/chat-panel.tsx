@@ -5,10 +5,11 @@ import { DefaultChatTransport } from 'ai';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { parseCitations } from '@/lib/chat/citations';
 
 const SUGGESTIONS = ['What were the main decisions?', 'What are my action items?', 'Summarize the disagreements.'];
 
-export function ChatPanel({ meetingId }: { meetingId: string }) {
+export function ChatPanel({ meetingId, onSeek }: { meetingId: string; onSeek: (ms: number) => void }) {
   const [input, setInput] = useState('');
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: `/api/meetings/${meetingId}/chat` }),
@@ -35,7 +36,23 @@ export function ChatPanel({ meetingId }: { meetingId: string }) {
         )}
         {messages.map((m) => (
           <div key={m.id} className={m.role === 'user' ? 'ml-8 rounded bg-muted p-2' : 'mr-4 whitespace-pre-wrap'}>
-            {m.parts.map((part, i) => (part.type === 'text' ? <span key={i}>{part.text}</span> : null))}
+            {m.parts.map((part, i) =>
+              part.type === 'text' ? (
+                <span key={i}>
+                  {m.role === 'assistant'
+                    ? parseCitations(part.text).map((seg, j) =>
+                        seg.type === 'cite' ? (
+                          <button key={j} type="button" onClick={() => onSeek(seg.ms)} className="mx-0.5 rounded bg-muted px-1 font-mono text-xs hover:underline">
+                            {seg.label}
+                          </button>
+                        ) : (
+                          <span key={j}>{seg.text}</span>
+                        ),
+                      )
+                    : part.text}
+                </span>
+              ) : null,
+            )}
           </div>
         ))}
         {status === 'submitted' && <p className="text-muted-foreground">Thinking…</p>}
