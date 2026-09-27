@@ -1,6 +1,7 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { meetings, utterances } from '../db/schema';
+import { exceedsMaxDuration } from '../limits';
 import { EMPTY_SUMMARY } from '../summary-schema';
 import { formatTranscript } from '../transcript/format';
 import { getTranscription } from './assemblyai';
@@ -29,6 +30,15 @@ export async function advanceMeeting(id: string): Promise<void> {
     await db
       .update(meetings)
       .set({ status: 'failed', error: `Transcription failed: ${transcript.error ?? 'unknown error'}` })
+      .where(and(eq(meetings.id, id), eq(meetings.status, 'transcribing')));
+    return;
+  }
+
+  // The browser can't always read a file's duration, so the 2h limit is enforced here too, before any LLM cost.
+  if (exceedsMaxDuration(transcript.audio_duration)) {
+    await db
+      .update(meetings)
+      .set({ status: 'failed', error: 'Recordings longer than 2 hours are not supported.' })
       .where(and(eq(meetings.id, id), eq(meetings.status, 'transcribing')));
     return;
   }

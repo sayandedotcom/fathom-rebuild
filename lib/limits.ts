@@ -7,3 +7,11 @@ export function validateMediaFile(file: { type: string; size: number }): string 
   if (file.size > MAX_UPLOAD_BYTES) return 'Files larger than 500MB are not supported.';
   return null;
 }
+
+export function clampDurationSec(elapsedMs: number): number {
+  return Math.min(MAX_DURATION_SEC, Math.max(0, Math.round(elapsedMs / 1000)));
+}
+
+export function exceedsMaxDuration(durationSec: number | null | undefined): boolean {
+  return durationSec != null && durationSec > MAX_DURATION_SEC;
+}

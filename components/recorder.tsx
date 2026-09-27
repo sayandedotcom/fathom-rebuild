@@ -7,8 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { createMeeting, defaultTitle } from '@/lib/client/media';
-import { MAX_DURATION_SEC, MAX_UPLOAD_BYTES } from '@/lib/limits';
+import { clampDurationSec, MAX_DURATION_SEC, MAX_UPLOAD_BYTES } from '@/lib/limits';
 import { formatTimestamp } from '@/lib/transcript/format';
+
+// A finished recording is kept until a meeting is created, so a failed upload can be retried or downloaded.
+type Pending = { blob: Blob; durationSec: number; url: string | null; downloadUrl: string };
 
 type Session = {
   recorder: MediaRecorder;
@@ -28,6 +31,7 @@ export function Recorder() {
   const [progress, setProgress] = useState(0);
   const [warning, setWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
   const session = useRef<Session | null>(null);
 
   useEffect(
@@ -40,6 +44,14 @@ export function Recorder() {
     },
     [],
   );
+
+  const unsaved = phase !== 'idle' || pending !== null;
+  useEffect(() => {
+    if (!unsaved) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [unsaved]);
 
   async function start() {
     setError(null);
@@ -100,7 +112,7 @@ export function Recorder() {
     await s.ctx.close();
 
     const blob = new Blob(s.chunks, { type: 'audio/webm' });
-    const durationSec = Math.round((Date.now() - s.startedAt) / 1000);
+    const durationSec = clampDurationSec(Date.now() - s.startedAt);
     if (blob.size === 0) {
       setPhase('idle');
       return setError('Nothing was recorded.');
@@ -109,21 +121,41 @@ export function Recorder() {
       setPhase('idle');
       return setError('The recording is larger than 500MB.');
     }
+    const recording = { blob, durationSec, url: null, downloadUrl: URL.createObjectURL(blob) };
+    setPending(recording);
+    await submit(recording);
+  }
+
+  async function submit(recording: Pending) {
+    setError(null);
+    setProgress(0);
     setPhase('uploading');
     try {
-      const uploaded = await upload(`recordings/${Date.now()}.webm`, blob, {
-        access: 'public',
-        handleUploadUrl: '/api/blob/upload',
-        contentType: 'audio/webm',
-        multipart: blob.size > 50 * 1024 * 1024,
-        onUploadProgress: (p) => setProgress(p.percentage),
-      });
-      const id = await createMeeting({ title: title.trim() || defaultTitle(), audioUrl: uploaded.url, durationSec });
+      if (!recording.url) {
+        const uploaded = await upload(`recordings/${Date.now()}.webm`, recording.blob, {
+          access: 'public',
+          handleUploadUrl: '/api/blob/upload',
+          contentType: 'audio/webm',
+          multipart: recording.blob.size > 50 * 1024 * 1024,
+          onUploadProgress: (p) => setProgress(p.percentage),
+        });
+        recording = { ...recording, url: uploaded.url };
+        setPending(recording);
+      }
+      const id = await createMeeting({ title: title.trim() || defaultTitle(), audioUrl: recording.url!, durationSec: recording.durationSec });
+      setPending(null);
+      setPhase('idle');
       router.push(`/meetings/${id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      setError(`${err instanceof Error ? err.message : 'Upload failed'} Your recording is kept below.`);
       setPhase('idle');
     }
+  }
+
+  function discard() {
+    if (pending) URL.revokeObjectURL(pending.downloadUrl);
+    setPending(null);
+    setError(null);
   }
 
   return (
@@ -133,7 +165,18 @@ export function Recorder() {
         <input type="checkbox" checked={captureTab} onChange={(e) => setCaptureTab(e.target.checked)} disabled={phase !== 'idle'} />
         Also capture a meeting tab (Google Meet, Zoom web…). Use headphones to avoid echo.
       </label>
-      {phase === 'idle' && <Button onClick={start}>Start recording</Button>}
+      {phase === 'idle' && !pending && <Button onClick={start}>Start recording</Button>}
+      {phase === 'idle' && pending && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={() => submit(pending)}>Retry upload</Button>
+          <a href={pending.downloadUrl} download="recording.webm" className="text-sm underline underline-offset-4">
+            Download recording
+          </a>
+          <Button variant="ghost" onClick={discard}>
+            Discard
+          </Button>
+        </div>
+      )}
       {phase === 'recording' && (
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-2 font-mono">

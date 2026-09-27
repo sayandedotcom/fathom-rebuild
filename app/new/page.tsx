@@ -12,7 +12,7 @@ export default function NewMeetingPage() {
           <TabsTrigger value="record">Record</TabsTrigger>
         </TabsList>
         <TabsContent value="upload" className="pt-4"><Uploader /></TabsContent>
-        <TabsContent value="record" className="pt-4"><Recorder /></TabsContent>
+        <TabsContent value="record" keepMounted className="pt-4"><Recorder /></TabsContent>
       </Tabs>
     </main>
   );

@@ -63,7 +63,7 @@ npm test                    # vitest: pure transcript, search and validation hel
 - **No bot joins calls.** Joining Zoom or Meet as a bot is a large project of its own and outside the scope of a 24h build.
 - **Chat puts the full transcript in the prompt instead of using RAG.** A 2-hour meeting is roughly 30k tokens, well within Claude's context window. No retrieval step also means no missed context and no vector infrastructure.
 - **Search is Postgres full-text search, not semantic search.** English stemming means "pricing" matches "price", but word families with different stems don't match each other ("decision" does not find "decided"). Each hit deep-links to the moment in the recording.
-- **There's no auth.** Cost is capped by the upload limits: 500MB and 2 hours, checked in the browser and when the upload token is issued. The API accepts only Vercel Blob URLs, so it can't be used to make AssemblyAI fetch arbitrary URLs.
+- **There's no auth.** Cost is capped by the upload limits. The 500MB limit is checked in the browser and when the upload token is issued. The 2-hour limit is checked in the browser, and again on the server from AssemblyAI's measured duration before any summary is made. The API accepts only Vercel Blob URLs, so it can't be used to make AssemblyAI fetch arbitrary URLs.
 - **Blob URLs are public but unguessable** (random suffix). Anyone with a link can play the audio.
 - **Chat history isn't saved.** It resets when the page reloads.
 - **Recordings with no speech:** AssemblyAI completes a silent recording with no utterances. The meeting becomes `ready` with "No speech was detected in this recording." and no LLM call is made. This was tested with a 10-second silent WAV.
