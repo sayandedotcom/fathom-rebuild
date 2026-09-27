@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChatPanel } from '@/components/chat-panel';
 import { Badge } from '@/components/ui/badge';
 import { SummaryView } from '@/components/summary-view';
 import { type Line, TranscriptView } from '@/components/transcript-view';
@@ -135,7 +136,11 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
         </section>
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Ask about this meeting</h2>
-          <p className="text-sm text-muted-foreground">Chat arrives in Task 8.</p>
+          {meeting.status === 'ready' ? (
+            <ChatPanel meetingId={meeting.id} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Chat is available once processing finishes.</p>
+          )}
         </section>
       </div>
     </main>
