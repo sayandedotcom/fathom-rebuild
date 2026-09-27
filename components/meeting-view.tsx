@@ -3,7 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatPanel } from '@/components/chat-panel';
+import { StatusStepper } from '@/components/status-stepper';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { SummaryView } from '@/components/summary-view';
 import { type Line, TranscriptView } from '@/components/transcript-view';
 import type { MeetingStatus } from '@/lib/db/schema';
@@ -63,6 +65,15 @@ function useStatusPolling(id: string, status: MeetingStatus) {
 
 export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps) {
   useStatusPolling(meeting.id, meeting.status);
+  const router = useRouter();
+  const [retrying, setRetrying] = useState(false);
+
+  async function retry() {
+    setRetrying(true);
+    await fetch(`/api/meetings/${meeting.id}/retry`, { method: 'POST' });
+    setRetrying(false);
+    router.refresh();
+  }
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentMs, setCurrentMs] = useState(0);
 
@@ -107,9 +118,19 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
         </p>
       </header>
 
-      {inProgress && <p className="rounded-md border p-4 text-sm">{STATUS_TEXT[meeting.status]}</p>}
+      {inProgress && (
+        <div className="space-y-2 rounded-md border p-4">
+          <StatusStepper status={meeting.status as 'transcribing' | 'summarizing'} />
+          <p className="text-sm text-muted-foreground">{STATUS_TEXT[meeting.status]}</p>
+        </div>
+      )}
       {meeting.status === 'failed' && (
-        <p className="rounded-md border border-destructive p-4 text-sm text-destructive">{meeting.error ?? 'Processing failed.'}</p>
+        <div className="rounded-md border border-destructive p-4 text-sm text-destructive">
+          <p>{meeting.error ?? 'Processing failed.'}</p>
+          <Button size="sm" variant="outline" className="mt-2" onClick={retry} disabled={retrying}>
+            {retrying ? 'Retrying…' : 'Retry'}
+          </Button>
+        </div>
       )}
 
       <audio
