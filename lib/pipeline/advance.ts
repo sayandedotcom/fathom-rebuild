@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { advanceBotMeeting } from '../bot/advance-bot';
 import { nameBotSpeakers } from '../bot/speakers';
 import { db } from '../db';
@@ -76,26 +76,47 @@ export async function advanceMeeting(id: string): Promise<void> {
   await summarizeMeeting(id);
 }
 
+// A rename or template change can land while Claude is still writing (20-60s). The summary is only
+// saved if the names and template are unchanged since it started; otherwise it is written again.
+const MAX_SUMMARY_PASSES = 3;
+
 export async function summarizeMeeting(id: string): Promise<void> {
-  const meeting = await db.query.meetings.findFirst({
-    where: eq(meetings.id, id),
-    columns: { speakerNames: true, template: true, titleIsAuto: true },
-  });
-  if (!meeting) return;
-  const lines = await db
-    .select({ speaker: utterances.speaker, startMs: utterances.startMs, text: utterances.text })
-    .from(utterances)
-    .where(eq(utterances.meetingId, id))
-    .orderBy(asc(utterances.startMs));
-  try {
-    const summary = lines.length === 0 ? EMPTY_SUMMARY : await summarize(formatTranscript(lines, meeting.speakerNames), meeting.template);
-    await db.update(meetings).set({ status: 'ready', summary, error: null }).where(eq(meetings.id, id));
-    const autoTitle = pickAutoTitle(meeting.titleIsAuto, summary.title);
-    if (autoTitle) {
-      await db.update(meetings).set({ title: autoTitle }).where(and(eq(meetings.id, id), eq(meetings.titleIsAuto, true)));
+  for (let pass = 1; pass <= MAX_SUMMARY_PASSES; pass++) {
+    const meeting = await db.query.meetings.findFirst({
+      where: eq(meetings.id, id),
+      columns: { speakerNames: true, template: true, titleIsAuto: true },
+    });
+    if (!meeting) return;
+    const lines = await db
+      .select({ speaker: utterances.speaker, startMs: utterances.startMs, text: utterances.text })
+      .from(utterances)
+      .where(eq(utterances.meetingId, id))
+      .orderBy(asc(utterances.startMs));
+    try {
+      const summary = lines.length === 0 ? EMPTY_SUMMARY : await summarize(formatTranscript(lines, meeting.speakerNames), meeting.template);
+      const unchanged =
+        pass === MAX_SUMMARY_PASSES
+          ? eq(meetings.id, id)
+          : and(
+              eq(meetings.id, id),
+              sql`${meetings.speakerNames} = ${JSON.stringify(meeting.speakerNames)}::jsonb`,
+              eq(meetings.template, meeting.template),
+            );
+      const saved = await db
+        .update(meetings)
+        .set({ status: 'ready', summary, error: null })
+        .where(unchanged)
+        .returning({ id: meetings.id });
+      if (saved.length === 0) continue;
+      const autoTitle = pickAutoTitle(meeting.titleIsAuto, summary.title);
+      if (autoTitle) {
+        await db.update(meetings).set({ title: autoTitle }).where(and(eq(meetings.id, id), eq(meetings.titleIsAuto, true)));
+      }
+      return;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await db.update(meetings).set({ status: 'failed', error: `Summary failed: ${message}` }).where(eq(meetings.id, id));
+      return;
     }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await db.update(meetings).set({ status: 'failed', error: `Summary failed: ${message}` }).where(eq(meetings.id, id));
   }
 }

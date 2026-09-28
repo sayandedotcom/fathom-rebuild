@@ -5,7 +5,7 @@ import { meetings } from '../db/schema';
 import { summarizeMeeting } from './advance';
 
 // Renames and template changes regenerate the summary. Only a `ready` meeting is claimed, so a
-// summary that is already running is never doubled; it picks up the saved change when it reads the meeting.
+// summary that is already running is never doubled; summarizeMeeting re-runs if the change landed mid-summary.
 export async function startResummarize(id: string): Promise<boolean> {
   const claimed = await db
     .update(meetings)
