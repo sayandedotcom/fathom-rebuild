@@ -1,3 +1,5 @@
+import { speakerName } from './speakers';
+
 export type TranscriptLine = { speaker: string; startMs: number; text: string };
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -10,8 +12,8 @@ export function formatTimestamp(ms: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-export function formatTranscript(lines: TranscriptLine[]): string {
-  return lines.map((l) => `[${formatTimestamp(l.startMs)}] Speaker ${l.speaker}: ${l.text}`).join('\n');
+export function formatTranscript(lines: TranscriptLine[], names: Record<string, string> = {}): string {
+  return lines.map((l) => `[${formatTimestamp(l.startMs)}] ${speakerName(l.speaker, names)}: ${l.text}`).join('\n');
 }
 
 export function parseSeekParam(t: string | string[] | undefined): number | null {

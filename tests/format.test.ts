@@ -37,3 +37,17 @@ describe('parseSeekParam', () => {
     expect(parseSeekParam(['1', '2'])).toBeNull();
   });
 });
+
+describe('formatTranscript with names', () => {
+  it('uses saved names and keeps letters for the rest', () => {
+    expect(
+      formatTranscript(
+        [
+          { speaker: 'A', startMs: 0, text: 'Hi.' },
+          { speaker: 'B', startMs: 1_000, text: 'Hello.' },
+        ],
+        { A: 'Priya' },
+      ),
+    ).toBe('[00:00] Priya: Hi.\n[00:01] Speaker B: Hello.');
+  });
+});
