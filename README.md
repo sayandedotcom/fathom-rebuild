@@ -6,7 +6,9 @@ A minimal, Fathom-style AI meeting assistant.
 
 Upload a meeting recording (audio or video, up to 500MB and 2 hours), record one in the browser (your mic plus a shared meeting tab), or send a bot into a Google Meet call. Fanthom transcribes it with speaker labels, writes a summary with key moments, key points, decisions and action items (copyable as Markdown), and lets you ask questions about the meeting in a chat that cites timestamps. Speakers can be renamed, and bot meetings are named from Google Meet automatically. You pick a summary template (General, Sales call, 1:1, Standup, Interview), untitled meetings get a title written by Claude, and meetings can be deleted along with their recording. Every meeting is kept in a searchable library. A search hit links to the exact moment in the recording.
 
-Core loop: **upload → diarized transcript → AI summary + action items → ask questions → find past meetings**.
+During bot and browser recordings, a Highlight button marks moments worth clipping. After the meeting, clips can be created from any transcript selection (up to 5 minutes). Public share links at `/c/<token>` expose only the clip's own audio and its transcript excerpt — no nav, no meeting link, no meeting audio.
+
+Core loop: **upload → diarized transcript → AI summary + action items → ask questions → find past meetings → highlight and clip moments**.
 
 ## Live demo
 
@@ -65,6 +67,29 @@ GET /api/meetings/:id poll ─────────┴─► advanceMeeting �
 - **Templates:** each template adds its own instructions and fixed section headings to the summary prompt. Claude leaves a section empty rather than invent content, and empty sections are hidden.
 - **Titles:** an empty title is stored as "Untitled meeting" and replaced by the summary's title. A title the user typed or edited is never overwritten.
 
+### Highlights and clips
+
+```
+Highlight button during recording → clips(origin='live', status='pending')
+     ▼
+summarizeMeeting: place 30s/5s window snapped to utterance boundaries (15s max snap)
+     ▼
+Claude labels in summary.highlights, matched to clips by second
+     ▼
+cutAudio: ffmpeg cuts to MP3 (96k) in Blob, clips(status='cutting')
+     ▼
+3-minute stale timeout → clips(status='failed'), can retry
+     ▼
+clips(status='ready') → shareable at /c/<token>
+```
+
+- **Clip storage:** the `clips` table holds origin (`live` for bot/browser highlights, `manual` for transcript selections), status transitions (`pending` → `cutting` → `ready` or `failed`), and metadata (start/end times, labels for live marks).
+- **Live marks:** when Highlight is pressed during recording, `summarizeMeeting` receives the timestamp and places a range 30 seconds before to 5 seconds after, snapped to utterance boundaries. If snapping widens an edge, it's limited to at most 15 seconds total.
+- **Claude labels:** in the same `summarizeMeeting` call, Claude generates labels for each live mark (stored in `summary.highlights`). These are matched back to clips by their second boundaries.
+- **ffmpeg-static:** the static binary is traced into the Next.js function bundle via `outputFileTracingIncludes` in `next.config.ts`. Each clip is cut into its own MP3 at 96 kbps. If a clip is stuck cutting for 3 minutes, it is marked `failed` and can be retried.
+- **HTTP proxy workaround:** the ffmpeg static binary crashes resolving hostnames on some Linux hosts (glibc NSS in a static binary). To work around this, `cutAudio` serves the source through a short-lived HTTP proxy on `127.0.0.1` that forwards `ffmpeg`'s Range requests to the Blob URL with Node `fetch`. ffmpeg only ever sees a literal-IP URL.
+- **Public share links:** clips are shared at `/c/<token>`, where the token is unguessable. The page exposes only the clip's audio and transcript excerpt, with no meeting link, no nav, and no access to the original recording.
+
 ## Local setup
 
 ```bash
@@ -91,6 +116,9 @@ npm test                    # vitest: pure transcript, search and validation hel
 - **Transcription failures:** a file that isn't really audio (for example, a text file renamed `.mp3`) ends as `failed`, and AssemblyAI's error message is shown on the meeting page.
 - **The Meet bot uses Recall.ai instead of a self-built headless Chrome bot.** Google blocks automated guest joins, Meet's UI changes break scrapers, and a long-running browser capturing audio can't run on Vercel functions.
 - **The host must admit the bot** ("Fanthom Notetaker"). Transcription still goes through AssemblyAI for the same diarization as uploads; Recall's participant names are not used yet.
+- **ffmpeg-static runs in Vercel functions.** The static binary is traced into the function bundle via `outputFileTracingIncludes` in `next.config.ts`. Browser-recorded WebM files without a cue index require ffmpeg to read from the start, which may slow seeking; a test cut of a short local WebM took ~1.5s with no notable seek overhead.
+- **Clips are audio only.** The MP3 is cut at 96 kbps to keep artifact sizes down, which is sufficient for speech.
+- **Clip share links are unguessable but unauthenticated,** like the rest of the app. Anyone with a clip's link can view it.
 
 ## What I'd do next
 
@@ -100,3 +128,4 @@ npm test                    # vitest: pure transcript, search and validation hel
 - Integrations: Slack or email recaps, CRM notes, calendar-based naming
 - Auth and per-user libraries
 - Meet bot: scheduled and calendar auto-join, Zoom/Teams links (Recall supports them)
+- Video clips alongside audio, and thumbnail previews for clip share links
