@@ -12,6 +12,7 @@ const createSchema = z.object({
     return url.protocol === 'https:' && url.hostname.endsWith('.blob.vercel-storage.com');
   }, 'audioUrl must be a Vercel Blob URL'),
   durationSec: z.number().int().nonnegative().max(MAX_DURATION_SEC).nullable(),
+  source: z.enum(['upload', 'record']).default('upload'),
 });
 
 export async function POST(req: Request) {

@@ -11,7 +11,7 @@ export const maxDuration = 300;
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const meeting = await db.query.meetings.findFirst({ where: eq(meetings.id, id), columns: { status: true, audioUrl: true } });
+  const meeting = await db.query.meetings.findFirst({ where: eq(meetings.id, id), columns: { status: true, audioUrl: true, recallBotId: true } });
   if (!meeting) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (meeting.status !== 'failed') return NextResponse.json({ error: 'Only failed meetings can be retried' }, { status: 409 });
 
@@ -24,6 +24,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     after(() => summarizeMeeting(id));
     return NextResponse.json({ status: 'summarizing' }, { status: 202 });
   }
+
+  if (!meeting.audioUrl) return NextResponse.json({ error: 'This meeting has no recording to retry' }, { status: 409 });
 
   let assemblyaiId: string;
   try {

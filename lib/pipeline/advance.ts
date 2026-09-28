@@ -23,6 +23,8 @@ export async function advanceMeeting(id: string): Promise<void> {
     return;
   }
   if (meeting.status !== 'transcribing') return;
+  // Bot meetings enter `transcribing` before the audio copy finishes; Task 4 handles the copy and its timeout.
+  if (!meeting.assemblyaiId) return;
 
   const transcript = await getTranscription(meeting.assemblyaiId);
   if (transcript.status === 'queued' || transcript.status === 'processing') return;

@@ -19,13 +19,26 @@ export function readDuration(file: Blob): Promise<number | null> {
   });
 }
 
-export async function createMeeting(input: { title: string; audioUrl: string; durationSec: number | null }): Promise<string> {
-  const res = await fetch('/api/meetings', {
+async function postForId(path: string, body: unknown): Promise<string> {
+  const res = await fetch(path, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
+    body: JSON.stringify(body),
   });
-  const data = (await res.json()) as { id?: string; error?: string };
+  const data = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
   if (!res.ok || !data.id) throw new Error(data.error ?? 'Could not create meeting');
   return data.id;
+}
+
+export function createMeeting(input: {
+  title: string;
+  audioUrl: string;
+  durationSec: number | null;
+  source: 'upload' | 'record';
+}): Promise<string> {
+  return postForId('/api/meetings', input);
+}
+
+export function startBot(input: { title: string; meetingUrl: string }): Promise<string> {
+  return postForId('/api/meetings/bot', input);
 }

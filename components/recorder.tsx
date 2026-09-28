@@ -142,7 +142,7 @@ export function Recorder() {
         recording = { ...recording, url: uploaded.url };
         setPending(recording);
       }
-      const id = await createMeeting({ title: title.trim() || defaultTitle(), audioUrl: recording.url!, durationSec: recording.durationSec });
+      const id = await createMeeting({ title: title.trim() || defaultTitle(), audioUrl: recording.url!, durationSec: recording.durationSec, source: 'record' });
       setPending(null);
       setPhase('idle');
       router.push(`/meetings/${id}`);

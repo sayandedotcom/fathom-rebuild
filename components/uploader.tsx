@@ -37,7 +37,7 @@ export function Uploader() {
         multipart: file.size > MULTIPART_THRESHOLD,
         onUploadProgress: (p) => setProgress(p.percentage),
       });
-      const id = await createMeeting({ title: title.trim() || defaultTitle(), audioUrl: blob.url, durationSec });
+      const id = await createMeeting({ title: title.trim() || defaultTitle(), audioUrl: blob.url, durationSec, source: 'upload' });
       router.push(`/meetings/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');

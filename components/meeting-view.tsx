@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SummaryView } from '@/components/summary-view';
 import { type Line, TranscriptView } from '@/components/transcript-view';
-import type { MeetingStatus } from '@/lib/db/schema';
+import type { MeetingSource, MeetingStatus } from '@/lib/db/schema';
 import type { Summary } from '@/lib/summary-schema';
 import { formatTimestamp } from '@/lib/transcript/format';
 
@@ -18,7 +18,9 @@ export type MeetingViewProps = {
     title: string;
     status: MeetingStatus;
     error: string | null;
-    audioUrl: string;
+    audioUrl: string | null;
+    source: MeetingSource;
+    botStatus: string | null;
     durationSec: number | null;
     createdAt: string;
     summary: Summary | null;
@@ -28,6 +30,7 @@ export type MeetingViewProps = {
 };
 
 const STATUS_TEXT: Record<MeetingStatus, string> = {
+  in_meeting: 'The bot is in the meeting.',
   transcribing: 'Transcribing… this usually takes a fraction of the recording length.',
   summarizing: 'Writing the summary…',
   ready: 'Ready',
@@ -120,7 +123,7 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
 
       {inProgress && (
         <div className="space-y-2 rounded-md border p-4">
-          <StatusStepper status={meeting.status as 'transcribing' | 'summarizing'} />
+          <StatusStepper status={meeting.status as 'transcribing' | 'summarizing'} source={meeting.source} />
           <p className="text-sm text-muted-foreground">{STATUS_TEXT[meeting.status]}</p>
         </div>
       )}
@@ -133,16 +136,18 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
         </div>
       )}
 
-      <div className="sticky top-0 z-10 bg-background py-2">
-        <audio
-          ref={audioRef}
-          src={meeting.audioUrl}
-          controls
-          preload="metadata"
-          className="w-full"
-          onTimeUpdate={(e) => setCurrentMs(e.currentTarget.currentTime * 1000)}
-        />
-      </div>
+      {meeting.audioUrl && (
+        <div className="sticky top-0 z-10 bg-background py-2">
+          <audio
+            ref={audioRef}
+            src={meeting.audioUrl}
+            controls
+            preload="metadata"
+            className="w-full"
+            onTimeUpdate={(e) => setCurrentMs(e.currentTarget.currentTime * 1000)}
+          />
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr_380px]">
         <section className="space-y-3">

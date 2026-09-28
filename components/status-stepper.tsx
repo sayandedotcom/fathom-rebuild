@@ -1,13 +1,13 @@
-import type { MeetingStatus } from '@/lib/db/schema';
+import type { MeetingSource, MeetingStatus } from '@/lib/db/schema';
 
-const STEPS = ['Uploaded', 'Transcribing', 'Summarizing', 'Ready'] as const;
-const INDEX: Record<Exclude<MeetingStatus, 'failed'>, number> = { transcribing: 1, summarizing: 2, ready: 3 };
+const INDEX: Record<Exclude<MeetingStatus, 'failed'>, number> = { in_meeting: 0, transcribing: 1, summarizing: 2, ready: 3 };
 
-export function StatusStepper({ status }: { status: Exclude<MeetingStatus, 'failed'> }) {
+export function StatusStepper({ status, source }: { status: Exclude<MeetingStatus, 'failed'>; source: MeetingSource }) {
+  const steps = [source === 'bot' ? 'In meeting' : 'Uploaded', 'Transcribing', 'Summarizing', 'Ready'];
   const current = INDEX[status];
   return (
-    <ol className="flex items-center gap-2 text-sm">
-      {STEPS.map((label, i) => (
+    <ol className="flex flex-wrap items-center gap-2 text-sm">
+      {steps.map((label, i) => (
         <li key={label} className="flex items-center gap-2">
           <span
             className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs ${
@@ -17,7 +17,7 @@ export function StatusStepper({ status }: { status: Exclude<MeetingStatus, 'fail
             {i + 1}
           </span>
           <span className={i <= current ? '' : 'text-muted-foreground'}>{label}</span>
-          {i < STEPS.length - 1 && <span className="mx-1 h-px w-8 bg-border" />}
+          {i < steps.length - 1 && <span className="mx-1 h-px w-8 bg-border" />}
         </li>
       ))}
     </ol>

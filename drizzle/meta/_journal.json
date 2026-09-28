@@ -8,6 +8,13 @@
       "when": 1790548918128,
       "tag": "0000_daffy_impossible_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790594930716,
+      "tag": "0001_wealthy_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

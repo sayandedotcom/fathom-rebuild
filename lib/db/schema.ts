@@ -4,16 +4,20 @@ import type { Summary } from '../summary-schema';
 
 const tsvector = customType<{ data: string }>({ dataType: () => 'tsvector' });
 
-export const meetingStatus = pgEnum('meeting_status', ['transcribing', 'summarizing', 'ready', 'failed']);
+export const meetingStatus = pgEnum('meeting_status', ['in_meeting', 'transcribing', 'summarizing', 'ready', 'failed']);
+export const meetingSource = pgEnum('meeting_source', ['upload', 'record', 'bot']);
 
 export const meetings = pgTable('meetings', {
   id: uuid('id').primaryKey().defaultRandom(),
   title: text('title').notNull(),
-  audioUrl: text('audio_url').notNull(),
+  audioUrl: text('audio_url'),
   durationSec: integer('duration_sec'),
   status: meetingStatus('status').notNull().default('transcribing'),
   error: text('error'),
-  assemblyaiId: text('assemblyai_id').notNull().unique(),
+  assemblyaiId: text('assemblyai_id').unique(),
+  source: meetingSource('source').notNull().default('upload'),
+  recallBotId: text('recall_bot_id').unique(),
+  botStatus: text('bot_status'),
   summary: jsonb('summary').$type<Summary>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
@@ -43,5 +47,6 @@ export const utterances = pgTable(
 
 export type Meeting = typeof meetings.$inferSelect;
 export type MeetingStatus = Meeting['status'];
+export type MeetingSource = Meeting['source'];
 export type Utterance = typeof utterances.$inferSelect;
 export type NewUtterance = typeof utterances.$inferInsert;

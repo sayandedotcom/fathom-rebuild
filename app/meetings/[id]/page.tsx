@@ -32,6 +32,8 @@ export default async function MeetingPage({
         status: meeting.status,
         error: meeting.error,
         audioUrl: meeting.audioUrl,
+        source: meeting.source,
+        botStatus: meeting.botStatus,
         durationSec: meeting.durationSec,
         createdAt: meeting.createdAt.toISOString(),
         summary: meeting.summary,
