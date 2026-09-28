@@ -1,5 +1,6 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { advanceBotMeeting } from '../bot/advance-bot';
+import { nameBotSpeakers } from '../bot/speakers';
 import { db } from '../db';
 import { meetings, utterances } from '../db/schema';
 import { exceedsMaxDuration } from '../limits';
@@ -70,6 +71,7 @@ export async function advanceMeeting(id: string): Promise<void> {
   for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
     await db.insert(utterances).values(rows.slice(i, i + INSERT_CHUNK));
   }
+  if (meeting.source === 'bot' && meeting.recallBotId) await nameBotSpeakers(id, meeting.recallBotId, rows);
   await summarizeMeeting(id);
 }
 

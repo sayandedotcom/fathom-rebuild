@@ -1,4 +1,5 @@
 import { requireEnv } from '../env';
+import type { TimelineSpan } from '../transcript/speakers';
 import { BOT_RECORDING_CAP_SEC, type RecallStatusChange } from './outcome';
 
 export type RecallBot = { id: string; status_changes: RecallStatusChange[]; recordings: { id: string }[] };
@@ -73,4 +74,35 @@ export async function getMixedAudioUrl(recordingId: string): Promise<string | nu
 
 export async function leaveCall(id: string): Promise<void> {
   await recall(`/bot/${encodeURIComponent(id)}/leave_call/`, { method: 'POST' });
+}
+
+type RawTimelineEntry = {
+  participant?: { name?: unknown } | null;
+  start_timestamp?: { relative?: unknown } | null;
+  end_timestamp?: { relative?: unknown } | null;
+} | null;
+
+export function timelineFromRecall(raw: unknown): TimelineSpan[] {
+  if (!Array.isArray(raw)) return [];
+  const spans: TimelineSpan[] = [];
+  for (const entry of raw as RawTimelineEntry[]) {
+    const name = entry?.participant?.name;
+    const start = entry?.start_timestamp?.relative;
+    const end = entry?.end_timestamp?.relative;
+    if (typeof name !== 'string' || !name.trim() || typeof start !== 'number') continue;
+    spans.push({ name: name.trim(), startMs: Math.round(start * 1000), endMs: typeof end === 'number' ? Math.round(end * 1000) : null });
+  }
+  return spans;
+}
+
+// Who spoke when, with Meet display names; offsets are relative to the start of the recording.
+export async function getSpeakerTimeline(botId: string): Promise<TimelineSpan[] | null> {
+  const bot = await recall<{
+    recordings?: { media_shortcuts?: { participant_events?: { data?: { speaker_timeline_download_url?: string | null } | null } | null } | null }[];
+  }>(`/bot/${encodeURIComponent(botId)}/`);
+  const url = bot.recordings?.[0]?.media_shortcuts?.participant_events?.data?.speaker_timeline_download_url;
+  if (!url) return null;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`speaker timeline download failed (${res.status})`);
+  return timelineFromRecall(await res.json());
 }

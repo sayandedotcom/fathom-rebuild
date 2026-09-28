@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { timelineFromRecall } from '../lib/bot/recall';
 import { matchSpeakers, speakerName } from '../lib/transcript/speakers';
 
 const u = (speaker: string, startMs: number, endMs: number) => ({ speaker, startMs, endMs });
@@ -44,5 +45,23 @@ describe('matchSpeakers', () => {
   });
   it('returns nothing for an empty timeline', () => {
     expect(matchSpeakers([u('A', 0, 5_000)], [])).toEqual({});
+  });
+});
+
+describe('timelineFromRecall', () => {
+  it('converts Recall timeline entries to spans in ms', () => {
+    const raw = [
+      { participant: { id: 100, name: 'Sayan De' }, start_timestamp: { relative: 0.08172315 }, end_timestamp: { relative: 4.5 } },
+      { participant: { id: 101, name: 'Priya' }, start_timestamp: { relative: 4.5 }, end_timestamp: null },
+    ];
+    expect(timelineFromRecall(raw)).toEqual([
+      { name: 'Sayan De', startMs: 82, endMs: 4_500 },
+      { name: 'Priya', startMs: 4_500, endMs: null },
+    ]);
+  });
+  it('skips malformed entries and tolerates garbage', () => {
+    expect(timelineFromRecall([{ participant: {}, start_timestamp: { relative: 1 } }, { nope: true }, null])).toEqual([]);
+    expect(timelineFromRecall({ not: 'an array' })).toEqual([]);
+    expect(timelineFromRecall(null)).toEqual([]);
   });
 });
