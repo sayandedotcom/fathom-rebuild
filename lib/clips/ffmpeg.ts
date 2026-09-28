@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import ffmpegPath from 'ffmpeg-static';
 
 const CUT_TIMEOUT_MS = 120_000;
@@ -23,8 +24,14 @@ async function proxySource(sourceUrl: string, req: IncomingMessage, res: ServerR
     return;
   }
   const range = req.headers.range;
+  // ffmpeg can go away mid-fetch (SIGKILL on timeout, early exit once it has enough data): abort the upstream
+  // fetch instead of letting it run to completion and then writing to a socket nobody is reading from.
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  req.once('close', abort);
+  res.once('close', abort);
   try {
-    const upstream = await fetch(sourceUrl, { method: req.method, headers: range ? { range } : {} });
+    const upstream = await fetch(sourceUrl, { method: req.method, headers: range ? { range } : {}, signal: controller.signal });
     const headers: Record<string, string> = {};
     for (const name of ['content-type', 'content-length', 'content-range', 'accept-ranges']) {
       const value = upstream.headers.get(name);
@@ -35,9 +42,17 @@ async function proxySource(sourceUrl: string, req: IncomingMessage, res: ServerR
       res.end();
       return;
     }
-    Readable.fromWeb(upstream.body as never).pipe(res);
-  } catch {
-    res.writeHead(502).end();
+    // pipeline (rather than .pipe()) destroys both sides and surfaces the error here on either a source or a
+    // response-side failure, instead of letting an unhandled 'error' event crash the process.
+    await pipeline(Readable.fromWeb(upstream.body as never), res);
+  } catch (err) {
+    // The client side (ffmpeg) is already gone; nothing left to respond to.
+    if (controller.signal.aborted) return;
+    if (!res.headersSent) res.writeHead(502).end();
+    else res.destroy(err instanceof Error ? err : undefined);
+  } finally {
+    req.off('close', abort);
+    res.off('close', abort);
   }
 }
 
