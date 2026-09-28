@@ -10,7 +10,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "check:model": "tsx --env-file=.env.local scripts/check-model.ts"
+    "check:model": "tsx --env-file=.env.local scripts/check-model.ts",
+    "check:recall": "tsx --env-file=.env.local scripts/check-recall.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.65",
