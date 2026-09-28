@@ -3,10 +3,12 @@
 import { upload } from '@vercel/blob/client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { TemplateSelect } from '@/components/template-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { createMeeting, defaultTitle } from '@/lib/client/media';
+import { createMeeting } from '@/lib/client/media';
+import type { MeetingTemplate } from '@/lib/templates';
 import { clampDurationSec, MAX_DURATION_SEC, MAX_UPLOAD_BYTES } from '@/lib/limits';
 import { formatTimestamp } from '@/lib/transcript/format';
 
@@ -26,6 +28,7 @@ export function Recorder() {
   const router = useRouter();
   const [captureTab, setCaptureTab] = useState(true);
   const [title, setTitle] = useState('');
+  const [template, setTemplate] = useState<MeetingTemplate>('general');
   const [phase, setPhase] = useState<'idle' | 'recording' | 'uploading'>('idle');
   const [elapsed, setElapsed] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -142,7 +145,7 @@ export function Recorder() {
         recording = { ...recording, url: uploaded.url };
         setPending(recording);
       }
-      const id = await createMeeting({ title: title.trim() || defaultTitle(), audioUrl: recording.url!, durationSec: recording.durationSec, source: 'record' });
+      const id = await createMeeting({ title: title.trim(), audioUrl: recording.url!, durationSec: recording.durationSec, source: 'record', template });
       setPending(null);
       setPhase('idle');
       router.push(`/meetings/${id}`);
@@ -161,6 +164,7 @@ export function Recorder() {
   return (
     <div className="space-y-4">
       <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Meeting title (optional)" disabled={phase !== 'idle'} />
+      <TemplateSelect value={template} onChange={setTemplate} disabled={phase !== 'idle'} />
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={captureTab} onChange={(e) => setCaptureTab(e.target.checked)} disabled={phase !== 'idle'} />
         Also capture a meeting tab (Google Meet, Zoom web…). Use headphones to avoid echo.

@@ -1,6 +1,4 @@
-export function defaultTitle(): string {
-  return `Meeting — ${new Date().toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`;
-}
+import type { MeetingTemplate } from '@/lib/templates';
 
 export function readDuration(file: Blob): Promise<number | null> {
   return new Promise((resolve) => {
@@ -35,10 +33,11 @@ export function createMeeting(input: {
   audioUrl: string;
   durationSec: number | null;
   source: 'upload' | 'record';
+  template: MeetingTemplate;
 }): Promise<string> {
   return postForId('/api/meetings', input);
 }
 
-export function startBot(input: { title: string; meetingUrl: string }): Promise<string> {
+export function startBot(input: { title: string; meetingUrl: string; template: MeetingTemplate }): Promise<string> {
   return postForId('/api/meetings/bot', input);
 }

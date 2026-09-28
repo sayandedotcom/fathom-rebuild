@@ -4,9 +4,12 @@ import { db } from '@/lib/db';
 import { meetings } from '@/lib/db/schema';
 import { MAX_DURATION_SEC } from '@/lib/limits';
 import { submitTranscription } from '@/lib/pipeline/assemblyai';
+import { MEETING_TEMPLATES } from '@/lib/templates';
+import { resolveCreateTitle } from '@/lib/titles';
 
 const createSchema = z.object({
-  title: z.string().trim().min(1).max(200),
+  title: z.string().trim().max(200).default(''),
+  template: z.enum(MEETING_TEMPLATES).default('general'),
   audioUrl: z.url().refine((u) => {
     const url = new URL(u);
     return url.protocol === 'https:' && url.hostname.endsWith('.blob.vercel-storage.com');
@@ -29,7 +32,7 @@ export async function POST(req: Request) {
   }
   const [meeting] = await db
     .insert(meetings)
-    .values({ ...parsed.data, assemblyaiId })
+    .values({ ...parsed.data, ...resolveCreateTitle(parsed.data.title), assemblyaiId })
     .returning({ id: meetings.id });
   return NextResponse.json({ id: meeting.id }, { status: 201 });
 }

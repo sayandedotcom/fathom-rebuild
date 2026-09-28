@@ -3,15 +3,14 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatPanel } from '@/components/chat-panel';
+import { MeetingHeader } from '@/components/meeting-header';
 import { StatusStepper } from '@/components/status-stepper';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { BOT_TEXT, canRetry, isStoppingText } from '@/lib/bot/outcome';
 import { SummaryView } from '@/components/summary-view';
 import { type Line, TranscriptView } from '@/components/transcript-view';
 import type { MeetingSource, MeetingStatus } from '@/lib/db/schema';
 import type { Summary } from '@/lib/summary-schema';
-import { statusLabel } from '@/lib/status-label';
 import type { MeetingTemplate } from '@/lib/templates';
 import { formatTimestamp } from '@/lib/transcript/format';
 
@@ -150,10 +149,7 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
   return (
     <main className="mx-auto w-full max-w-7xl space-y-4 p-6">
       <header className="space-y-1">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">{meeting.title}</h1>
-          <Badge variant={meeting.status === 'failed' ? 'destructive' : 'secondary'}>{statusLabel(meeting.status)}</Badge>
-        </div>
+        <MeetingHeader meeting={meeting} onError={setActionError} />
         <p className="text-sm text-muted-foreground" suppressHydrationWarning>
           {new Date(meeting.createdAt).toLocaleString()}
           {meeting.durationSec !== null && ` · ${formatTimestamp(meeting.durationSec * 1000)}`}

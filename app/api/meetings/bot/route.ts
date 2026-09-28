@@ -7,9 +7,12 @@ import { createBot, leaveCall } from '@/lib/bot/recall';
 import { db } from '@/lib/db';
 import { meetings } from '@/lib/db/schema';
 import { MAX_ACTIVE_BOTS } from '@/lib/limits';
+import { MEETING_TEMPLATES } from '@/lib/templates';
+import { resolveCreateTitle } from '@/lib/titles';
 
 const createSchema = z.object({
-  title: z.string().trim().min(1).max(200),
+  title: z.string().trim().max(200).default(''),
+  template: z.enum(MEETING_TEMPLATES).default('general'),
   meetingUrl: z
     .string()
     .trim()
@@ -34,7 +37,8 @@ export async function POST(req: Request) {
   try {
     await db.insert(meetings).values({
       id,
-      title: parsed.data.title,
+      ...resolveCreateTitle(parsed.data.title),
+      template: parsed.data.template,
       source: 'bot',
       status: 'in_meeting',
       recallBotId,

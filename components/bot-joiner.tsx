@@ -2,14 +2,17 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { TemplateSelect } from '@/components/template-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { isMeetUrl } from '@/lib/bot/meet-url';
-import { defaultTitle, startBot } from '@/lib/client/media';
+import { startBot } from '@/lib/client/media';
+import type { MeetingTemplate } from '@/lib/templates';
 
 export function BotJoiner() {
   const router = useRouter();
   const [title, setTitle] = useState('');
+  const [template, setTemplate] = useState<MeetingTemplate>('general');
   const [meetingUrl, setMeetingUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +24,7 @@ export function BotJoiner() {
     if (!isMeetUrl(url)) return setError('Paste a Google Meet link like https://meet.google.com/abc-defg-hij.');
     setBusy(true);
     try {
-      const id = await startBot({ title: title.trim() || defaultTitle(), meetingUrl: url });
+      const id = await startBot({ title: title.trim(), meetingUrl: url, template });
       router.push(`/meetings/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start the bot');
@@ -32,6 +35,7 @@ export function BotJoiner() {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Meeting title (optional)" disabled={busy} />
+      <TemplateSelect value={template} onChange={setTemplate} disabled={busy} />
       <Input
         value={meetingUrl}
         onChange={(e) => setMeetingUrl(e.target.value)}

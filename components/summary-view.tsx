@@ -60,6 +60,13 @@ export function SummaryView({ title, summary, onSeek }: { title: string; summary
       <Section title="Key points">
         <ul className="list-disc space-y-1 pl-5">{summary.keyPoints.map((p, i) => <li key={i}>{p}</li>)}</ul>
       </Section>
+      {(summary.sections ?? [])
+        .filter((s) => s.items.length > 0)
+        .map((s) => (
+          <Section key={s.heading} title={s.heading}>
+            <ul className="list-disc space-y-1 pl-5">{s.items.map((item, i) => <li key={i}>{item}</li>)}</ul>
+          </Section>
+        ))}
       {summary.decisions.length > 0 && (
         <Section title="Decisions">
           <ul className="list-disc space-y-1 pl-5">{summary.decisions.map((d, i) => <li key={i}>{d}</li>)}</ul>

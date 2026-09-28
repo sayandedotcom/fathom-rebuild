@@ -3,10 +3,12 @@
 import { upload } from '@vercel/blob/client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { TemplateSelect } from '@/components/template-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { createMeeting, defaultTitle, readDuration } from '@/lib/client/media';
+import { createMeeting, readDuration } from '@/lib/client/media';
+import type { MeetingTemplate } from '@/lib/templates';
 import { MAX_DURATION_SEC, validateMediaFile } from '@/lib/limits';
 
 const MULTIPART_THRESHOLD = 50 * 1024 * 1024;
@@ -14,7 +16,8 @@ const MULTIPART_THRESHOLD = 50 * 1024 * 1024;
 export function Uploader() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState(''); // empty avoids a server/client locale hydration mismatch; defaultTitle() applies on submit
+  const [title, setTitle] = useState('');
+  const [template, setTemplate] = useState<MeetingTemplate>('general');
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy = progress !== null;
@@ -37,7 +40,7 @@ export function Uploader() {
         multipart: file.size > MULTIPART_THRESHOLD,
         onUploadProgress: (p) => setProgress(p.percentage),
       });
-      const id = await createMeeting({ title: title.trim() || defaultTitle(), audioUrl: blob.url, durationSec, source: 'upload' });
+      const id = await createMeeting({ title: title.trim(), audioUrl: blob.url, durationSec, source: 'upload', template });
       router.push(`/meetings/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -48,6 +51,7 @@ export function Uploader() {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Meeting title (optional)" disabled={busy} />
+      <TemplateSelect value={template} onChange={setTemplate} disabled={busy} />
       <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 text-sm text-muted-foreground hover:bg-muted/50">
         <input
           type="file"

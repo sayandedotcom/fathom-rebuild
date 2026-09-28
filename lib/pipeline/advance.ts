@@ -5,6 +5,7 @@ import { db } from '../db';
 import { meetings, utterances } from '../db/schema';
 import { exceedsMaxDuration } from '../limits';
 import { EMPTY_SUMMARY } from '../summary-schema';
+import { pickAutoTitle } from '../titles';
 import { formatTranscript } from '../transcript/format';
 import { getTranscription } from './assemblyai';
 import { mapUtterances } from './map-utterances';
@@ -78,7 +79,7 @@ export async function advanceMeeting(id: string): Promise<void> {
 export async function summarizeMeeting(id: string): Promise<void> {
   const meeting = await db.query.meetings.findFirst({
     where: eq(meetings.id, id),
-    columns: { speakerNames: true },
+    columns: { speakerNames: true, template: true, titleIsAuto: true },
   });
   if (!meeting) return;
   const lines = await db
@@ -87,8 +88,12 @@ export async function summarizeMeeting(id: string): Promise<void> {
     .where(eq(utterances.meetingId, id))
     .orderBy(asc(utterances.startMs));
   try {
-    const summary = lines.length === 0 ? EMPTY_SUMMARY : await summarize(formatTranscript(lines, meeting.speakerNames));
+    const summary = lines.length === 0 ? EMPTY_SUMMARY : await summarize(formatTranscript(lines, meeting.speakerNames), meeting.template);
     await db.update(meetings).set({ status: 'ready', summary, error: null }).where(eq(meetings.id, id));
+    const autoTitle = pickAutoTitle(meeting.titleIsAuto, summary.title);
+    if (autoTitle) {
+      await db.update(meetings).set({ title: autoTitle }).where(and(eq(meetings.id, id), eq(meetings.titleIsAuto, true)));
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await db.update(meetings).set({ status: 'failed', error: `Summary failed: ${message}` }).where(eq(meetings.id, id));

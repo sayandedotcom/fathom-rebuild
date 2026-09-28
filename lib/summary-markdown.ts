@@ -14,6 +14,7 @@ export function summaryToMarkdown(title: string, s: Summary): string {
     }),
   );
   section('Key points', s.keyPoints.map((p) => `- ${p}`));
+  for (const part of s.sections ?? []) section(part.heading, part.items.map((i) => `- ${i}`));
   section('Decisions', s.decisions.map((d) => `- ${d}`));
   return out.join('\n');
 }
