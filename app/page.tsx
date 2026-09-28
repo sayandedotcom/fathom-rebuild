@@ -32,7 +32,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
 
 async function MeetingList() {
   const rows = await db
-    .select({ id: meetings.id, title: meetings.title, status: meetings.status, durationSec: meetings.durationSec, createdAt: meetings.createdAt })
+    .select({ id: meetings.id, title: meetings.title, status: meetings.status, durationSec: meetings.durationSec, createdAt: meetings.createdAt, source: meetings.source })
     .from(meetings)
     .orderBy(desc(meetings.createdAt))
     .limit(100);
@@ -52,6 +52,7 @@ async function MeetingList() {
             <span className="flex shrink-0 items-center gap-3 text-sm text-muted-foreground">
               {m.durationSec !== null && formatTimestamp(m.durationSec * 1000)}
               <span>{m.createdAt.toLocaleDateString()}</span>
+              {m.source === 'bot' && <Badge variant="outline">bot</Badge>}
               <Badge variant={m.status === 'failed' ? 'destructive' : 'secondary'}>{m.status}</Badge>
             </span>
           </Link>

@@ -1,3 +1,4 @@
+import { BotJoiner } from '@/components/bot-joiner';
 import { Recorder } from '@/components/recorder';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Uploader } from '@/components/uploader';
@@ -10,9 +11,11 @@ export default function NewMeetingPage() {
         <TabsList>
           <TabsTrigger value="upload">Upload</TabsTrigger>
           <TabsTrigger value="record">Record</TabsTrigger>
+          <TabsTrigger value="bot">Join a meeting</TabsTrigger>
         </TabsList>
         <TabsContent value="upload" className="pt-4"><Uploader /></TabsContent>
         <TabsContent value="record" keepMounted className="pt-4"><Recorder /></TabsContent>
+        <TabsContent value="bot" className="pt-4"><BotJoiner /></TabsContent>
       </Tabs>
     </main>
   );

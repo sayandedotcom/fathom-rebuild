@@ -37,18 +37,20 @@ const STATUS_TEXT: Record<MeetingStatus, string> = {
   failed: 'Failed',
 };
 
-function useStatusPolling(id: string, status: MeetingStatus) {
+const POLLED: MeetingStatus[] = ['in_meeting', 'transcribing', 'summarizing'];
+
+function useStatusPolling(id: string, status: MeetingStatus, botStatus: string | null) {
   const router = useRouter();
   useEffect(() => {
-    if (status !== 'transcribing' && status !== 'summarizing') return;
+    if (!POLLED.includes(status)) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
       try {
         const res = await fetch(`/api/meetings/${id}`, { cache: 'no-store' });
         if (res.ok) {
-          const data = (await res.json()) as { status: MeetingStatus };
-          if (data.status !== status) {
+          const data = (await res.json()) as { status: MeetingStatus; botStatus: string | null };
+          if (data.status !== status || (data.botStatus ?? null) !== botStatus) {
             router.refresh();
             return;
           }
@@ -63,11 +65,11 @@ function useStatusPolling(id: string, status: MeetingStatus) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [id, status, router]);
+  }, [id, status, botStatus, router]);
 }
 
 export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps) {
-  useStatusPolling(meeting.id, meeting.status);
+  useStatusPolling(meeting.id, meeting.status, meeting.botStatus);
   const router = useRouter();
   const [retrying, setRetrying] = useState(false);
 
@@ -75,6 +77,14 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
     setRetrying(true);
     await fetch(`/api/meetings/${meeting.id}/retry`, { method: 'POST' });
     setRetrying(false);
+    router.refresh();
+  }
+
+  const [stopping, setStopping] = useState(false);
+  async function stopBot() {
+    setStopping(true);
+    await fetch(`/api/meetings/${meeting.id}/stop-bot`, { method: 'POST' });
+    setStopping(false);
     router.refresh();
   }
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -106,7 +116,7 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
     return () => audio.removeEventListener('loadedmetadata', apply);
   }, [initialSeekMs, lines]);
 
-  const inProgress = meeting.status === 'transcribing' || meeting.status === 'summarizing';
+  const inProgress = POLLED.includes(meeting.status);
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-4 p-6">
@@ -123,8 +133,15 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
 
       {inProgress && (
         <div className="space-y-2 rounded-md border p-4">
-          <StatusStepper status={meeting.status as 'transcribing' | 'summarizing'} source={meeting.source} />
-          <p className="text-sm text-muted-foreground">{STATUS_TEXT[meeting.status]}</p>
+          <StatusStepper status={meeting.status as 'in_meeting' | 'transcribing' | 'summarizing'} source={meeting.source} />
+          <p className="text-sm text-muted-foreground">
+            {meeting.status === 'in_meeting' ? (meeting.botStatus ?? 'Joining the meeting…') : STATUS_TEXT[meeting.status]}
+          </p>
+          {meeting.status === 'in_meeting' && (
+            <Button size="sm" variant="outline" onClick={stopBot} disabled={stopping}>
+              {stopping ? 'Stopping…' : 'Stop recording'}
+            </Button>
+          )}
         </div>
       )}
       {meeting.status === 'failed' && (
