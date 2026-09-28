@@ -39,6 +39,7 @@ export function botOutcome(changes: RecallStatusChange[], hasRecording: boolean)
     case 'in_call_recording':
       return { kind: 'active', text: BOT_TEXT.recording };
     case 'call_ended':
+    case 'recording_done':
       return { kind: 'active', text: BOT_TEXT.processing };
     case 'recording_permission_denied':
       return { kind: 'failed', message: REMOVED };

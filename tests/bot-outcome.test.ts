@@ -18,6 +18,12 @@ describe('botOutcome', () => {
       text: BOT_TEXT.processing,
     });
   });
+  it('treats recording_done (between call_ended and done) as processing', () => {
+    expect(botOutcome([ch('in_call_recording'), ch('call_ended', 'timeout_exceeded_everyone_left'), ch('recording_done')], true)).toEqual({
+      kind: 'active',
+      text: BOT_TEXT.processing,
+    });
+  });
   it('uses the latest change by time, not array order', () => {
     const later = ch('in_call_recording');
     const earlier = { ...ch('in_waiting_room'), created_at: '2026-09-28T11:00:00.000Z' };
