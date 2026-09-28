@@ -4,7 +4,7 @@ A minimal, Fathom-style AI meeting assistant.
 
 ## What it does
 
-Upload a meeting recording (audio or video, up to 500MB and 2 hours), or record one in the browser (your mic plus a shared meeting tab). Fanthom transcribes it with speaker labels, writes a summary with key moments, key points, decisions and action items (copyable as Markdown), and lets you ask questions about the meeting in a chat that cites timestamps. Every meeting is kept in a searchable library. A search hit links to the exact moment in the recording.
+Upload a meeting recording (audio or video, up to 500MB and 2 hours), record one in the browser (your mic plus a shared meeting tab), or send a bot into a Google Meet call. Fanthom transcribes it with speaker labels, writes a summary with key moments, key points, decisions and action items (copyable as Markdown), and lets you ask questions about the meeting in a chat that cites timestamps. Every meeting is kept in a searchable library. A search hit links to the exact moment in the recording.
 
 Core loop: **upload → diarized transcript → AI summary + action items → ask questions → find past meetings**.
 
@@ -44,18 +44,32 @@ Code map:
 - `app/`: pages and API routes
 - `components/`: UI
 
+### Meeting bot (Google Meet)
+
+```
+/new "Join a meeting" → POST /api/meetings/bot → Recall POST /bot (audio_mixed_mp3) → meetings(status=in_meeting)
+Recall webhook /api/webhooks/recall ─┐
+GET /api/meetings/:id poll ─────────┴─► advanceMeeting → advanceBotMeeting:
+    status_changes → live text | failed (not admitted / removed / ended early / fatal)
+    done + recording → claim in_meeting→transcribing → copy MP3 to Blob → AssemblyAI → existing pipeline
+```
+
+- **Why the audio is copied:** Recall's download links expire after 7 days, so the MP3 is copied into our own Blob store before transcription. The audio player and search deep links keep working after that.
+- **Limits:** the bot waits at most 10 minutes to be admitted. It is told to leave after 2 hours of recording, the same cap as uploads.
+- **Stuck copies:** if the function copying the audio dies, the meeting is marked failed after 6 minutes ("Copying the bot recording timed out."). Retry runs the copy again.
+
 ## Local setup
 
 ```bash
 npm install
 vercel link                 # link to your Vercel project (Neon + Blob connected to it)
-vercel env pull .env.local  # DATABASE_URL, BLOB_READ_WRITE_TOKEN, ASSEMBLYAI_API_KEY, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, WEBHOOK_SECRET
+vercel env pull .env.local  # DATABASE_URL, BLOB_READ_WRITE_TOKEN, ASSEMBLYAI_API_KEY, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, WEBHOOK_SECRET, RECALL_API_KEY, RECALL_REGION
 npm run db:migrate
 npm run dev                 # http://localhost:3000
 npm test                    # vitest: pure transcript, search and validation helpers
 ```
 
-`.env.example` lists every variable. Leave `APP_URL` empty locally. In production it must be the public https URL so AssemblyAI can call the webhook. `npm run check:model` makes one real call to confirm the configured Claude model ID works.
+`.env.example` lists every variable. Leave `APP_URL` empty locally. In production it must be the public https URL so AssemblyAI can call the webhook. `npm run check:model` makes one real call to confirm the configured Claude model ID works. `npm run check:recall -- <meet link>` sends a real bot to a Meet and prints Recall's status changes and the audio URL.
 
 ## Trade-offs
 
@@ -68,6 +82,8 @@ npm test                    # vitest: pure transcript, search and validation hel
 - **Chat history isn't saved.** It resets when the page reloads.
 - **Recordings with no speech:** AssemblyAI completes a silent recording with no utterances. The meeting becomes `ready` with "No speech was detected in this recording." and no LLM call is made. This was tested with a 10-second silent WAV.
 - **Transcription failures:** a file that isn't really audio (for example, a text file renamed `.mp3`) ends as `failed`, and AssemblyAI's error message is shown on the meeting page.
+- **The Meet bot uses Recall.ai instead of a self-built headless Chrome bot.** Google blocks automated guest joins, Meet's UI changes break scrapers, and a long-running browser capturing audio can't run on Vercel functions.
+- **The host must admit the bot** ("Fanthom Notetaker"). Transcription still goes through AssemblyAI for the same diarization as uploads; Recall's participant names are not used yet.
 
 ## What I'd do next
 
@@ -76,3 +92,4 @@ npm test                    # vitest: pure transcript, search and validation hel
 - Persisted chat history, and editable, shareable action items
 - Integrations: Slack or email recaps, CRM notes, calendar-based naming
 - Auth and per-user libraries
+- Meet bot: scheduled and calendar auto-join, Zoom/Teams links (Recall supports them), real participant names from Recall
