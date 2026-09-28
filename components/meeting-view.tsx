@@ -6,11 +6,12 @@ import { ChatPanel } from '@/components/chat-panel';
 import { StatusStepper } from '@/components/status-stepper';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { canRetry } from '@/lib/bot/outcome';
+import { BOT_TEXT, canRetry, isStoppingText } from '@/lib/bot/outcome';
 import { SummaryView } from '@/components/summary-view';
 import { type Line, TranscriptView } from '@/components/transcript-view';
 import type { MeetingSource, MeetingStatus } from '@/lib/db/schema';
 import type { Summary } from '@/lib/summary-schema';
+import { statusLabel } from '@/lib/status-label';
 import { formatTimestamp } from '@/lib/transcript/format';
 
 export type MeetingViewProps = {
@@ -82,12 +83,21 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
   }
 
   const [stopping, setStopping] = useState(false);
+  const [stopError, setStopError] = useState<string | null>(null);
   async function stopBot() {
     setStopping(true);
-    await fetch(`/api/meetings/${meeting.id}/stop-bot`, { method: 'POST' });
+    setStopError(null);
+    const res = await fetch(`/api/meetings/${meeting.id}/stop-bot`, { method: 'POST' });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setStopError(data.error ?? 'Could not stop the bot.');
+    }
     setStopping(false);
     router.refresh();
   }
+  // Once the call has ended or a stop is already under way, there is nothing left to stop.
+  const canStop =
+    meeting.status === 'in_meeting' && meeting.botStatus !== BOT_TEXT.processing && !isStoppingText(meeting.botStatus);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentMs, setCurrentMs] = useState(0);
 
@@ -124,7 +134,7 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
       <header className="space-y-1">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold">{meeting.title}</h1>
-          <Badge variant={meeting.status === 'failed' ? 'destructive' : 'secondary'}>{meeting.status}</Badge>
+          <Badge variant={meeting.status === 'failed' ? 'destructive' : 'secondary'}>{statusLabel(meeting.status)}</Badge>
         </div>
         <p className="text-sm text-muted-foreground" suppressHydrationWarning>
           {new Date(meeting.createdAt).toLocaleString()}
@@ -138,11 +148,12 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
           <p className="text-sm text-muted-foreground">
             {meeting.status === 'in_meeting' ? (meeting.botStatus ?? 'Joining the meeting…') : STATUS_TEXT[meeting.status]}
           </p>
-          {meeting.status === 'in_meeting' && (
+          {canStop && (
             <Button size="sm" variant="outline" onClick={stopBot} disabled={stopping}>
               {stopping ? 'Stopping…' : 'Stop recording'}
             </Button>
           )}
+          {stopError && <p className="text-sm text-destructive">{stopError}</p>}
         </div>
       )}
       {meeting.status === 'failed' && (

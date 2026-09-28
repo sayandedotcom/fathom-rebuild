@@ -5,6 +5,21 @@ export type RecallBot = { id: string; status_changes: RecallStatusChange[]; reco
 
 const DEFAULT_WAITING_ROOM_TIMEOUT_SEC = 600;
 
+export class RecallError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+// Outages, rate limits and network failures are worth retrying; 4xx answers are not.
+export function isTransientRecallError(err: unknown): boolean {
+  if (err instanceof RecallError) return err.status >= 500 || err.status === 429;
+  return err instanceof TypeError;
+}
+
 export function waitingRoomTimeoutSec(): number {
   const value = Number(process.env.RECALL_WAITING_ROOM_TIMEOUT_SEC);
   return Number.isInteger(value) && value > 0 ? value : DEFAULT_WAITING_ROOM_TIMEOUT_SEC;
@@ -22,7 +37,7 @@ async function recall<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (!res.ok) {
     const detail = (await res.text()).slice(0, 300);
-    throw new Error(`Recall ${init.method ?? 'GET'} ${path} failed (${res.status}): ${detail}`);
+    throw new RecallError(`Recall ${init.method ?? 'GET'} ${path} failed (${res.status}): ${detail}`, res.status);
   }
   const text = await res.text();
   return (text ? JSON.parse(text) : {}) as T;

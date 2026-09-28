@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
-import { STOPPING_REQUESTED } from '@/lib/bot/advance-bot';
+import { STOPPING_REQUESTED } from '@/lib/bot/outcome';
 import { leaveCall } from '@/lib/bot/recall';
 import { db } from '@/lib/db';
 import { meetings } from '@/lib/db/schema';
@@ -20,7 +20,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   try {
     await leaveCall(meeting.recallBotId);
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 502 });
+    console.error('Recall leaveCall failed', id, err);
+    return NextResponse.json({ error: 'Could not stop the bot. It may already be leaving; refresh in a moment.' }, { status: 502 });
   }
   await db
     .update(meetings)

@@ -7,6 +7,7 @@ import { SearchResults } from '@/components/search-results';
 import { db } from '@/lib/db';
 import { meetings } from '@/lib/db/schema';
 import { searchMeetings } from '@/lib/search/search';
+import { statusLabel } from '@/lib/status-label';
 import { formatTimestamp } from '@/lib/transcript/format';
 
 export default async function LibraryPage({ searchParams }: { searchParams: Promise<{ q?: string | string[] }> }) {
@@ -53,7 +54,7 @@ async function MeetingList() {
               {m.durationSec !== null && formatTimestamp(m.durationSec * 1000)}
               <span>{m.createdAt.toLocaleDateString()}</span>
               {m.source === 'bot' && <Badge variant="outline">bot</Badge>}
-              <Badge variant={m.status === 'failed' ? 'destructive' : 'secondary'}>{m.status}</Badge>
+              <Badge variant={m.status === 'failed' ? 'destructive' : 'secondary'}>{statusLabel(m.status)}</Badge>
             </span>
           </Link>
         </li>

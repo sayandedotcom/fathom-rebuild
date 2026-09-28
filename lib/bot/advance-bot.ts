@@ -1,12 +1,19 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull, notInArray, or } from 'drizzle-orm';
 import { db } from '../db';
 import { type Meeting, meetings } from '../db/schema';
 import { copyBotAudioAndSubmit } from './finish';
-import { BOT_TEXT, botMeetingExpired, botOutcome, botOverCap, recordingStartedAt } from './outcome';
+import {
+  BOT_TEXT,
+  botMeetingExpired,
+  botOutcome,
+  botOverCap,
+  isStoppingText,
+  nextBotStatus,
+  recordingStartedAt,
+  STOPPING_AT_CAP,
+  STOPPING_REQUESTED,
+} from './outcome';
 import { getBot, leaveCall, type RecallBot } from './recall';
-
-export const STOPPING_AT_CAP = 'Stopping at the 2-hour limit. The recording will be processed next.';
-export const STOPPING_REQUESTED = 'Stopping. The recording will be processed next.';
 
 export async function advanceBotMeeting(meeting: Meeting): Promise<void> {
   if (!meeting.recallBotId) return;
@@ -44,15 +51,22 @@ export async function advanceBotMeeting(meeting: Meeting): Promise<void> {
     return;
   }
 
-  const stopping = meeting.botStatus === STOPPING_AT_CAP || meeting.botStatus === STOPPING_REQUESTED;
-  let text: string = stopping && outcome.text !== BOT_TEXT.processing ? meeting.botStatus! : outcome.text;
-  if (botOverCap(recordingStartedAt(bot.status_changes), new Date()) && meeting.botStatus !== STOPPING_AT_CAP) {
+  const overCap = botOverCap(recordingStartedAt(bot.status_changes), new Date());
+  const next = nextBotStatus({ current: meeting.botStatus, outcomeText: outcome.text, overCap });
+  let text = next.text;
+  if (next.leave) {
     try {
       await leaveCall(meeting.recallBotId);
-      text = STOPPING_AT_CAP;
     } catch (err) {
       console.error('Recall leaveCall at cap failed', meeting.id, err);
+      text = outcome.text;
     }
   }
-  if (text !== meeting.botStatus) await db.update(meetings).set({ botStatus: text }).where(inMeeting);
+  if (text === meeting.botStatus) return;
+  // A Stop pressed while this poll ran must not be overwritten by a stale "Recording" label.
+  const guard =
+    isStoppingText(text) || text === BOT_TEXT.processing
+      ? inMeeting
+      : and(inMeeting, or(isNull(meetings.botStatus), notInArray(meetings.botStatus, [STOPPING_AT_CAP, STOPPING_REQUESTED])));
+  await db.update(meetings).set({ botStatus: text }).where(guard);
 }

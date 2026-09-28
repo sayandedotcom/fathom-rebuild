@@ -14,6 +14,10 @@ export const BOT_TEXT = {
 
 const REMOVED = 'The bot was removed or not allowed to record.';
 
+export const STOPPING_AT_CAP = 'Stopping at the 2-hour limit. The recording will be processed next.';
+export const STOPPING_REQUESTED = 'Stopping. The recording will be processed next.';
+const STOPPING: string[] = [STOPPING_AT_CAP, STOPPING_REQUESTED];
+
 // Stop recording 2 minutes before the 2h processing limit, so leave latency can't push the audio over it.
 export const BOT_RECORDING_CAP_SEC = MAX_DURATION_SEC - 120;
 // No bot can still be joining or recording this long after creation (waiting room + cap + margin).
@@ -28,6 +32,7 @@ function latestChange(changes: RecallStatusChange[]): RecallStatusChange | null 
 }
 
 function endedMessage(subCode: string | null): string {
+  if (subCode?.startsWith('bot_received_leave_call')) return 'The bot was stopped before it started recording.';
   if (subCode?.startsWith('bot_kicked')) return REMOVED;
   if (subCode?.startsWith('timeout_exceeded_waiting_room')) return "The bot wasn't let into the meeting.";
   return 'The meeting ended before the bot could record.';
@@ -81,4 +86,16 @@ export function canRetry(meeting: { source: string; audioUrl: string | null; err
     meeting.error?.startsWith('Copying the bot recording') === true ||
     meeting.error?.startsWith('Could not process the bot recording') === true
   );
+}
+
+// The live status text for an active bot, and whether to tell it to leave at the recording cap (once, before the call ends).
+export function nextBotStatus(input: { current: string | null; outcomeText: string; overCap: boolean }): { text: string; leave: boolean } {
+  if (input.outcomeText === BOT_TEXT.processing) return { text: BOT_TEXT.processing, leave: false };
+  if (input.overCap && input.current !== STOPPING_AT_CAP) return { text: STOPPING_AT_CAP, leave: true };
+  const stopping = input.current !== null && STOPPING.includes(input.current);
+  return { text: stopping ? input.current! : input.outcomeText, leave: false };
+}
+
+export function isStoppingText(text: string | null): boolean {
+  return text !== null && STOPPING.includes(text);
 }
