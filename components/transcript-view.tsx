@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Hint } from '@/components/hint';
 import { type ClipRange, rangeFromLines } from '@/lib/clips/logic';
 import { formatTimestamp } from '@/lib/transcript/format';
 import { speakerName } from '@/lib/transcript/speakers';
@@ -105,16 +106,17 @@ function SpeakerLabel({ label, names, onRename }: { label: string; names: Record
     );
   }
   return (
-    <button
-      type="button"
-      title="Rename this speaker"
-      onClick={() => {
-        setValue(names[label] ?? '');
-        setEditing(true);
-      }}
-      className={`font-medium hover:underline ${speakerColor(label)}`}
-    >
-      {speakerName(label, names)}
-    </button>
+    <Hint label="Click to rename this speaker everywhere in the meeting.">
+      <button
+        type="button"
+        onClick={() => {
+          setValue(names[label] ?? '');
+          setEditing(true);
+        }}
+        className={`font-medium hover:underline ${speakerColor(label)}`}
+      >
+        {speakerName(label, names)}
+      </button>
+    </Hint>
   );
 }

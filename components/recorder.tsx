@@ -3,12 +3,13 @@
 import { upload } from '@vercel/blob/client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { Hint } from '@/components/hint';
 import { TemplateSelect } from '@/components/template-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { createMeeting } from '@/lib/client/media';
-import { MAX_CLIPS_PER_MEETING } from '@/lib/clips/logic';
+import { HIGHLIGHT_LIMIT_HINT, LIVE_HIGHLIGHT_HINT, MAX_CLIPS_PER_MEETING } from '@/lib/clips/logic';
 import type { MeetingTemplate } from '@/lib/templates';
 import { clampDurationSec, MAX_DURATION_SEC, MAX_UPLOAD_BYTES } from '@/lib/limits';
 import { formatTimestamp } from '@/lib/transcript/format';
@@ -181,16 +182,24 @@ export function Recorder() {
         <input type="checkbox" checked={captureTab} onChange={(e) => setCaptureTab(e.target.checked)} disabled={phase !== 'idle'} />
         Also capture a meeting tab (Google Meet, Zoom web…). Use headphones to avoid echo.
       </label>
-      {phase === 'idle' && !pending && <Button onClick={start}>Start recording</Button>}
+      {phase === 'idle' && !pending && (
+        <Hint label="Records your microphone. With the box above ticked, the browser also asks which tab to capture.">
+          <Button onClick={start}>Start recording</Button>
+        </Hint>
+      )}
       {phase === 'idle' && pending && (
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={() => submit(pending)}>Retry upload</Button>
+          <Hint label="Send the saved recording again.">
+            <Button onClick={() => submit(pending)}>Retry upload</Button>
+          </Hint>
           <a href={pending.downloadUrl} download="recording.webm" className="text-sm underline underline-offset-4">
             Download recording
           </a>
-          <Button variant="ghost" onClick={discard}>
-            Discard
-          </Button>
+          <Hint label="Delete this unsent recording from the browser. It can't be recovered.">
+            <Button variant="ghost" onClick={discard}>
+              Discard
+            </Button>
+          </Hint>
         </div>
       )}
       {phase === 'recording' && (
@@ -199,19 +208,23 @@ export function Recorder() {
             <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" />
             {formatTimestamp(elapsed * 1000)}
           </span>
-          <Button
-            variant="outline"
-            disabled={highlightCount >= MAX_CLIPS_PER_MEETING}
-            onClick={() => {
-              const s = session.current;
-              if (!s) return;
-              highlights.current.push(Date.now() - s.startedAt);
-              setHighlightCount(highlights.current.length);
-            }}
-          >
-            Highlight{highlightCount > 0 ? ` (${highlightCount})` : ''}
-          </Button>
-          <Button variant="destructive" onClick={stop}>Stop and transcribe</Button>
+          <Hint wrap label={highlightCount >= MAX_CLIPS_PER_MEETING ? HIGHLIGHT_LIMIT_HINT : LIVE_HIGHLIGHT_HINT}>
+            <Button
+              variant="outline"
+              disabled={highlightCount >= MAX_CLIPS_PER_MEETING}
+              onClick={() => {
+                const s = session.current;
+                if (!s) return;
+                highlights.current.push(Date.now() - s.startedAt);
+                setHighlightCount(highlights.current.length);
+              }}
+            >
+              Highlight{highlightCount > 0 ? ` (${highlightCount})` : ''}
+            </Button>
+          </Hint>
+          <Hint label="End the recording, upload it and generate the transcript and summary.">
+            <Button variant="destructive" onClick={stop}>Stop and transcribe</Button>
+          </Hint>
         </div>
       )}
       {phase === 'uploading' && <Progress value={progress} />}

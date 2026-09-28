@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Figtree, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 const figtree = Figtree({
@@ -31,7 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${figtree.variable} ${instrumentSerif.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {children}
+        <TooltipProvider delay={300}>{children}</TooltipProvider>
       </body>
     </html>
   );

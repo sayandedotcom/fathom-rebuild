@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { Hint } from '@/components/hint';
 import { TemplateSelect } from '@/components/template-select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -67,17 +68,18 @@ export function MeetingHeader({ meeting, onError }: { meeting: HeaderMeeting; on
         />
       ) : (
         <h1>
-          <button
-            type="button"
-            title="Rename this meeting"
-            className="text-left text-2xl font-semibold hover:underline"
-            onClick={() => {
-              setTitle(meeting.title);
-              setEditing(true);
-            }}
-          >
-            {meeting.title}
-          </button>
+          <Hint label="Click to rename this meeting.">
+            <button
+              type="button"
+              className="text-left text-2xl font-semibold hover:underline"
+              onClick={() => {
+                setTitle(meeting.title);
+                setEditing(true);
+              }}
+            >
+              {meeting.title}
+            </button>
+          </Hint>
         </h1>
       )}
       <Badge variant={meeting.status === 'failed' ? 'destructive' : 'secondary'}>{statusLabel(meeting.status)}</Badge>
@@ -85,10 +87,13 @@ export function MeetingHeader({ meeting, onError }: { meeting: HeaderMeeting; on
         value={meeting.template}
         disabled={meeting.status !== 'ready'}
         onChange={(template) => void patch({ template })}
+        hint={meeting.status === 'ready' ? 'Summary format. Changing it rewrites the summary in the new format.' : 'You can change the summary format once processing finishes.'}
       />
-      <Button size="sm" variant="outline" className="ml-auto" onClick={remove} disabled={deleting}>
-        {deleting ? 'Deleting…' : 'Delete'}
-      </Button>
+      <Hint wrap className="ml-auto inline-flex" label="Permanently delete this meeting with its recording, transcript and clips.">
+        <Button size="sm" variant="outline" onClick={remove} disabled={deleting}>
+          {deleting ? 'Deleting…' : 'Delete'}
+        </Button>
+      </Hint>
     </div>
   );
 }

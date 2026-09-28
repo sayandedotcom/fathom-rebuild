@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Hint } from '@/components/hint';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ClipItem } from '@/lib/clips/logic';
@@ -62,25 +63,31 @@ export function ClipsPanel({ clips, onSeek, onChanged, onError }: Props) {
           {statusText(c) && <p className={c.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>{statusText(c)}</p>}
           <div className="flex gap-2">
             {c.status === 'ready' && (
-              <Button size="sm" variant="outline" onClick={() => copyLink(c)}>
-                {copied === c.id ? 'Copied' : 'Copy link'}
-              </Button>
+              <Hint label="Copy a public link that plays only this clip, not the rest of the meeting.">
+                <Button size="sm" variant="outline" onClick={() => copyLink(c)}>
+                  {copied === c.id ? 'Copied' : 'Copy link'}
+                </Button>
+              </Hint>
             )}
             {c.status === 'failed' && c.startMs !== null && (
-              <Button size="sm" variant="outline" onClick={() => act(fetch(`/api/clips/${c.id}/retry`, { method: 'POST' }), 'Could not retry the clip.')}>
-                Retry
-              </Button>
+              <Hint label="Try cutting this clip again.">
+                <Button size="sm" variant="outline" onClick={() => act(fetch(`/api/clips/${c.id}/retry`, { method: 'POST' }), 'Could not retry the clip.')}>
+                  Retry
+                </Button>
+              </Hint>
             )}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                if (!window.confirm('Delete this clip? Its share link will stop working.')) return;
-                void act(fetch(`/api/clips/${c.id}`, { method: 'DELETE' }), 'Could not delete the clip.');
-              }}
-            >
-              Delete
-            </Button>
+            <Hint label="Delete this clip. Its share link stops working.">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  if (!window.confirm('Delete this clip? Its share link will stop working.')) return;
+                  void act(fetch(`/api/clips/${c.id}`, { method: 'DELETE' }), 'Could not delete the clip.');
+                }}
+              >
+                Delete
+              </Button>
+            </Hint>
           </div>
         </li>
       ))}

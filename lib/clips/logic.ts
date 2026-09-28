@@ -10,6 +10,8 @@ export const CLIP_CUT_TIMEOUT_MS = 3 * 60 * 1000;
 // a longer grace period than one already `cutting` before it's considered stuck.
 export const CLIP_PENDING_TIMEOUT_MS = 10 * 60 * 1000;
 export const MAX_CLIPS_PER_MEETING = 50;
+export const LIVE_HIGHLIGHT_HINT = `Mark this moment. Once the transcript is ready it becomes a clip of the ${LIVE_BEFORE_MS / 1000}s before to ${LIVE_AFTER_MS / 1000}s after.`;
+export const HIGHLIGHT_LIMIT_HINT = `This meeting has reached the ${MAX_CLIPS_PER_MEETING}-clip limit.`;
 
 export type ClipRange = { startMs: number; endMs: number };
 

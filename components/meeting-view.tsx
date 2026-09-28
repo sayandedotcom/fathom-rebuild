@@ -5,11 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatPanel } from '@/components/chat-panel';
 import { ClipsPanel } from '@/components/clips-panel';
 import { HighlightBar } from '@/components/highlight-bar';
+import { Hint } from '@/components/hint';
 import { MeetingHeader } from '@/components/meeting-header';
 import { StatusStepper } from '@/components/status-stepper';
 import { Button } from '@/components/ui/button';
 import { BOT_TEXT, canRetry, isStoppingText } from '@/lib/bot/outcome';
-import { type ClipItem, type ClipRange, linesInClips, visibleClips } from '@/lib/clips/logic';
+import { type ClipItem, type ClipRange, LIVE_HIGHLIGHT_HINT, linesInClips, visibleClips } from '@/lib/clips/logic';
 import { SummaryView } from '@/components/summary-view';
 import { type Line, TranscriptView } from '@/components/transcript-view';
 import type { MeetingSource, MeetingStatus } from '@/lib/db/schema';
@@ -211,14 +212,18 @@ export function MeetingView({ meeting, lines, clips, initialSeekMs }: MeetingVie
           </p>
           <div className="flex items-center gap-2">
             {canStop && (
-              <Button size="sm" variant="outline" onClick={stopBot} disabled={stopping}>
-                {stopping ? 'Stopping…' : 'Stop recording'}
-              </Button>
+              <Hint wrap label="Make the notetaker leave the call and process what it has recorded so far.">
+                <Button size="sm" variant="outline" onClick={stopBot} disabled={stopping}>
+                  {stopping ? 'Stopping…' : 'Stop recording'}
+                </Button>
+              </Hint>
             )}
             {meeting.status === 'in_meeting' && meeting.botStatus === BOT_TEXT.recording && (
-              <Button size="sm" onClick={highlight}>
-                Highlight
-              </Button>
+              <Hint label={LIVE_HIGHLIGHT_HINT}>
+                <Button size="sm" onClick={highlight}>
+                  Highlight
+                </Button>
+              </Hint>
             )}
           </div>
           {highlightMsg && <p className="text-sm text-muted-foreground">{highlightMsg}</p>}
@@ -229,9 +234,11 @@ export function MeetingView({ meeting, lines, clips, initialSeekMs }: MeetingVie
         <div className="rounded-md border border-destructive p-4 text-sm text-destructive">
           <p>{meeting.error ?? 'Processing failed.'}</p>
           {canRetry(meeting) && (
-            <Button size="sm" variant="outline" className="mt-2" onClick={retry} disabled={retrying}>
-              {retrying ? 'Retrying…' : 'Retry'}
-            </Button>
+            <Hint wrap className="mt-2 inline-flex" label="Try processing this meeting again.">
+              <Button size="sm" variant="outline" onClick={retry} disabled={retrying}>
+                {retrying ? 'Retrying…' : 'Retry'}
+              </Button>
+            </Hint>
           )}
         </div>
       )}
@@ -261,9 +268,11 @@ export function MeetingView({ meeting, lines, clips, initialSeekMs }: MeetingVie
         <Panel title="Transcript">
           {meeting.status === 'ready' && selection && (
             <div className="sticky top-0 z-10 flex items-center gap-2 bg-card py-1">
-              <Button size="sm" onClick={clipSelection} disabled={clipping}>
-                Clip {formatTimestamp(selection.startMs)}–{formatTimestamp(selection.endMs)}
-              </Button>
+              <Hint wrap label="Cut a shareable clip from the selected transcript lines.">
+                <Button size="sm" onClick={clipSelection} disabled={clipping}>
+                  Clip {formatTimestamp(selection.startMs)}–{formatTimestamp(selection.endMs)}
+                </Button>
+              </Hint>
             </div>
           )}
           {lines.length > 0 || meeting.status === 'ready' ? (

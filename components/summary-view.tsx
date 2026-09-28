@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Hint } from '@/components/hint';
 import { Button } from '@/components/ui/button';
 import { timestampToMs } from '@/lib/chat/citations';
 import { summaryToMarkdown } from '@/lib/summary-markdown';
@@ -17,9 +18,11 @@ export function SummaryView({ title, summary, onSeek }: { title: string; summary
 
   return (
     <div className="space-y-5 text-sm">
-      <Button size="sm" variant="outline" onClick={copy}>
-        {copied ? 'Copied' : 'Copy as Markdown'}
-      </Button>
+      <Hint label="Copy the summary as Markdown to paste into docs, email or chat.">
+        <Button size="sm" variant="outline" onClick={copy}>
+          {copied ? 'Copied' : 'Copy as Markdown'}
+        </Button>
+      </Hint>
       <p className="leading-relaxed">{summary.overview}</p>
       {(summary.highlights ?? []).length > 0 && (
         <Section title="Highlights">
