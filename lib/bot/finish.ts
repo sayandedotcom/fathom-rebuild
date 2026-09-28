@@ -1,4 +1,4 @@
-import { put } from '@vercel/blob';
+import { del, put } from '@vercel/blob';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '../db';
 import { meetings } from '../db/schema';
@@ -45,7 +45,12 @@ export async function copyBotAudioAndSubmit(id: string): Promise<void> {
       multipart: true,
     });
     // Save the copy first: if AssemblyAI rejects it, Retry resubmits this audio instead of copying it again.
-    await db.update(meetings).set({ audioUrl: blob.url }).where(copying);
+    const saved = await db.update(meetings).set({ audioUrl: blob.url }).where(copying).returning({ id: meetings.id });
+    if (saved.length === 0) {
+      // The meeting was deleted (or failed) while copying: don't leave the recording behind or pay to transcribe it.
+      await del(blob.url).catch((err) => console.error('Deleting orphaned bot audio failed', id, err));
+      return;
+    }
     const assemblyaiId = await submitTranscription(blob.url);
     await db.update(meetings).set({ assemblyaiId }).where(copying);
   } catch (err) {
