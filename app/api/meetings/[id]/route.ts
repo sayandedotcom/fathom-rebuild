@@ -12,10 +12,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!isUuid(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const meeting = await db.query.meetings.findFirst({
     where: eq(meetings.id, id),
-    columns: { status: true, error: true },
+    columns: { status: true, error: true, botStatus: true },
   });
   if (!meeting) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (meeting.status === 'transcribing' || meeting.status === 'summarizing') {
+  if (meeting.status === 'in_meeting' || meeting.status === 'transcribing' || meeting.status === 'summarizing') {
     after(() => advanceMeeting(id));
   }
   return NextResponse.json(meeting, { headers: { 'cache-control': 'no-store' } });

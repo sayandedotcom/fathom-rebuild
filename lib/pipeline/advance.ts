@@ -1,4 +1,5 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
+import { advanceBotMeeting } from '../bot/advance-bot';
 import { db } from '../db';
 import { meetings, utterances } from '../db/schema';
 import { exceedsMaxDuration } from '../limits';
@@ -6,7 +7,7 @@ import { EMPTY_SUMMARY } from '../summary-schema';
 import { formatTranscript } from '../transcript/format';
 import { getTranscription } from './assemblyai';
 import { mapUtterances } from './map-utterances';
-import { isStaleSummarizing } from './stale';
+import { isStaleCopy, isStaleSummarizing } from './stale';
 import { summarize } from './summarize';
 
 const INSERT_CHUNK = 500;
@@ -14,6 +15,7 @@ const INSERT_CHUNK = 500;
 export async function advanceMeeting(id: string): Promise<void> {
   const meeting = await db.query.meetings.findFirst({ where: eq(meetings.id, id) });
   if (!meeting) return;
+  if (meeting.status === 'in_meeting') return advanceBotMeeting(meeting);
 
   if (isStaleSummarizing(meeting.status, meeting.updatedAt, new Date())) {
     await db
@@ -23,8 +25,16 @@ export async function advanceMeeting(id: string): Promise<void> {
     return;
   }
   if (meeting.status !== 'transcribing') return;
-  // Bot meetings enter `transcribing` before the audio copy finishes; Task 4 handles the copy and its timeout.
-  if (!meeting.assemblyaiId) return;
+  // Bot meetings enter `transcribing` before the audio copy finishes.
+  if (!meeting.assemblyaiId) {
+    if (isStaleCopy(meeting.updatedAt, new Date())) {
+      await db
+        .update(meetings)
+        .set({ status: 'failed', error: 'Copying the bot recording timed out.' })
+        .where(and(eq(meetings.id, id), eq(meetings.status, 'transcribing'), isNull(meetings.assemblyaiId)));
+    }
+    return;
+  }
 
   const transcript = await getTranscription(meeting.assemblyaiId);
   if (transcript.status === 'queued' || transcript.status === 'processing') return;

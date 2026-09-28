@@ -3,6 +3,7 @@ import { after, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { meetings, utterances } from '@/lib/db/schema';
 import { isUuid } from '@/lib/ids';
+import { copyBotAudioAndSubmit } from '@/lib/bot/finish';
 import { submitTranscription } from '@/lib/pipeline/assemblyai';
 import { summarizeMeeting } from '@/lib/pipeline/advance';
 
@@ -25,7 +26,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ status: 'summarizing' }, { status: 202 });
   }
 
-  if (!meeting.audioUrl) return NextResponse.json({ error: 'This meeting has no recording to retry' }, { status: 409 });
+  if (!meeting.audioUrl) {
+    if (!meeting.recallBotId) return NextResponse.json({ error: 'This meeting has no recording to retry' }, { status: 409 });
+    const claimed = await db
+      .update(meetings)
+      .set({ status: 'transcribing', error: null, assemblyaiId: null })
+      .where(isFailed)
+      .returning({ id: meetings.id });
+    if (claimed.length === 0) return NextResponse.json({ error: 'Already retrying' }, { status: 409 });
+    after(() => copyBotAudioAndSubmit(id));
+    return NextResponse.json({ status: 'transcribing' }, { status: 202 });
+  }
 
   let assemblyaiId: string;
   try {
