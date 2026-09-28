@@ -3,10 +3,13 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatPanel } from '@/components/chat-panel';
+import { ClipsPanel } from '@/components/clips-panel';
+import { HighlightBar } from '@/components/highlight-bar';
 import { MeetingHeader } from '@/components/meeting-header';
 import { StatusStepper } from '@/components/status-stepper';
 import { Button } from '@/components/ui/button';
 import { BOT_TEXT, canRetry, isStoppingText } from '@/lib/bot/outcome';
+import { type ClipItem, type ClipRange, linesInClips, visibleClips } from '@/lib/clips/logic';
 import { SummaryView } from '@/components/summary-view';
 import { type Line, TranscriptView } from '@/components/transcript-view';
 import type { MeetingSource, MeetingStatus } from '@/lib/db/schema';
@@ -30,6 +33,7 @@ export type MeetingViewProps = {
     template: MeetingTemplate;
   };
   lines: Line[];
+  clips: ClipItem[];
   initialSeekMs: number | null;
 };
 
@@ -43,18 +47,18 @@ const STATUS_TEXT: Record<MeetingStatus, string> = {
 
 const POLLED: MeetingStatus[] = ['in_meeting', 'transcribing', 'summarizing'];
 
-function useStatusPolling(id: string, status: MeetingStatus, botStatus: string | null) {
+function useStatusPolling(id: string, status: MeetingStatus, botStatus: string | null, busyClips: number) {
   const router = useRouter();
   useEffect(() => {
-    if (!POLLED.includes(status)) return;
+    if (!(POLLED.includes(status) || busyClips > 0)) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
       try {
         const res = await fetch(`/api/meetings/${id}`, { cache: 'no-store' });
         if (res.ok) {
-          const data = (await res.json()) as { status: MeetingStatus; botStatus: string | null };
-          if (data.status !== status || (data.botStatus ?? null) !== botStatus) {
+          const data = (await res.json()) as { status: MeetingStatus; botStatus: string | null; busyClips: number };
+          if (data.status !== status || (data.botStatus ?? null) !== botStatus || data.busyClips !== busyClips) {
             router.refresh();
             return;
           }
@@ -69,11 +73,12 @@ function useStatusPolling(id: string, status: MeetingStatus, botStatus: string |
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [id, status, botStatus, router]);
+  }, [id, status, botStatus, busyClips, router]);
 }
 
-export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps) {
-  useStatusPolling(meeting.id, meeting.status, meeting.botStatus);
+export function MeetingView({ meeting, lines, clips, initialSeekMs }: MeetingViewProps) {
+  const busyClips = clips.filter((c) => c.startMs !== null && (c.status === 'pending' || c.status === 'cutting')).length;
+  useStatusPolling(meeting.id, meeting.status, meeting.botStatus, busyClips);
   const router = useRouter();
   const [retrying, setRetrying] = useState(false);
 
@@ -127,6 +132,47 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
 
   const activeId = useMemo(() => lines.findLast((l) => l.startMs <= currentMs)?.id ?? null, [lines, currentMs]);
 
+  const shownClips = useMemo(() => visibleClips(clips, meeting.status), [clips, meeting.status]);
+  const placed = useMemo(
+    () => shownClips.flatMap((c) => (c.startMs !== null && c.endMs !== null ? [{ id: c.id, title: c.title, startMs: c.startMs, endMs: c.endMs }] : [])),
+    [shownClips],
+  );
+  const clipLineIds = useMemo(() => linesInClips(lines, placed), [lines, placed]);
+
+  const [highlightMsg, setHighlightMsg] = useState<string | null>(null);
+  async function highlight() {
+    setHighlightMsg(null);
+    const res = await fetch(`/api/meetings/${meeting.id}/clips`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ origin: 'live' }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { markMs?: number; error?: string };
+    setHighlightMsg(res.ok && data.markMs !== undefined ? `Highlighted at ${formatTimestamp(data.markMs)}` : (data.error ?? 'Could not add the highlight.'));
+    if (res.ok) router.refresh();
+  }
+
+  const [selection, setSelection] = useState<ClipRange | null>(null);
+  const [clipping, setClipping] = useState(false);
+  async function clipSelection() {
+    if (!selection) return;
+    setClipping(true);
+    setActionError(null);
+    const res = await fetch(`/api/meetings/${meeting.id}/clips`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ origin: 'manual', ...selection }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setActionError(data.error ?? 'Could not create the clip.');
+    }
+    window.getSelection()?.removeAllRanges();
+    setSelection(null);
+    setClipping(false);
+    router.refresh();
+  }
+
   // Metadata can finish loading before hydration, so check readyState instead of relying on onLoadedMetadata.
   const initialSeekDone = useRef(false);
   useEffect(() => {
@@ -163,11 +209,19 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
           <p className="text-sm text-muted-foreground">
             {meeting.status === 'in_meeting' ? (meeting.botStatus ?? 'Joining the meeting…') : STATUS_TEXT[meeting.status]}
           </p>
-          {canStop && (
-            <Button size="sm" variant="outline" onClick={stopBot} disabled={stopping}>
-              {stopping ? 'Stopping…' : 'Stop recording'}
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {canStop && (
+              <Button size="sm" variant="outline" onClick={stopBot} disabled={stopping}>
+                {stopping ? 'Stopping…' : 'Stop recording'}
+              </Button>
+            )}
+            {meeting.status === 'in_meeting' && meeting.botStatus === BOT_TEXT.recording && (
+              <Button size="sm" onClick={highlight}>
+                Highlight
+              </Button>
+            )}
+          </div>
+          {highlightMsg && <p className="text-sm text-muted-foreground">{highlightMsg}</p>}
           {stopError && <p className="text-sm text-destructive">{stopError}</p>}
         </div>
       )}
@@ -192,6 +246,7 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
             className="w-full"
             onTimeUpdate={(e) => setCurrentMs(e.currentTarget.currentTime * 1000)}
           />
+          <HighlightBar clips={placed} durationMs={meeting.durationSec === null ? null : meeting.durationSec * 1000} onSeek={seek} />
         </div>
       )}
 
@@ -199,11 +254,28 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Summary</h2>
           {meeting.summary ? <SummaryView title={meeting.title} summary={meeting.summary} onSeek={seek} /> : <p className="text-sm text-muted-foreground">Not available yet.</p>}
+          <h2 className="pt-4 text-lg font-semibold">Clips</h2>
+          <ClipsPanel clips={shownClips} onSeek={seek} onChanged={() => router.refresh()} onError={setActionError} />
         </section>
         <section className="space-y-3 lg:max-h-[75vh] lg:overflow-y-auto">
           <h2 className="text-lg font-semibold">Transcript</h2>
+          {meeting.status === 'ready' && selection && (
+            <div className="sticky top-0 z-10 flex items-center gap-2 bg-background py-1">
+              <Button size="sm" onClick={clipSelection} disabled={clipping}>
+                Clip {formatTimestamp(selection.startMs)}–{formatTimestamp(selection.endMs)}
+              </Button>
+            </div>
+          )}
           {lines.length > 0 || meeting.status === 'ready' ? (
-            <TranscriptView lines={lines} activeId={activeId} onSeek={seek} speakerNames={meeting.speakerNames} onRename={renameSpeaker} />
+            <TranscriptView
+              lines={lines}
+              activeId={activeId}
+              onSeek={seek}
+              speakerNames={meeting.speakerNames}
+              onRename={renameSpeaker}
+              clipLineIds={clipLineIds}
+              onSelectRange={setSelection}
+            />
           ) : (
             <p className="text-sm text-muted-foreground">Not available yet.</p>
           )}

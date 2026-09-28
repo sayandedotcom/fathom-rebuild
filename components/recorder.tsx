@@ -8,12 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { createMeeting } from '@/lib/client/media';
+import { MAX_CLIPS_PER_MEETING } from '@/lib/clips/logic';
 import type { MeetingTemplate } from '@/lib/templates';
 import { clampDurationSec, MAX_DURATION_SEC, MAX_UPLOAD_BYTES } from '@/lib/limits';
 import { formatTimestamp } from '@/lib/transcript/format';
 
 // A finished recording is kept until a meeting is created, so a failed upload can be retried or downloaded.
-type Pending = { blob: Blob; durationSec: number; url: string | null; downloadUrl: string };
+type Pending = { blob: Blob; durationSec: number; url: string | null; downloadUrl: string; highlights: number[] };
 
 type Session = {
   recorder: MediaRecorder;
@@ -36,6 +37,8 @@ export function Recorder() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const session = useRef<Session | null>(null);
+  const highlights = useRef<number[]>([]);
+  const [highlightCount, setHighlightCount] = useState(0);
 
   useEffect(
     () => () => {
@@ -99,6 +102,8 @@ export function Recorder() {
     }, 500);
     session.current = { recorder, streams, ctx, chunks, startedAt, timer };
     setElapsed(0);
+    highlights.current = [];
+    setHighlightCount(0);
     setPhase('recording');
   }
 
@@ -124,7 +129,7 @@ export function Recorder() {
       setPhase('idle');
       return setError('The recording is larger than 500MB.');
     }
-    const recording = { blob, durationSec, url: null, downloadUrl: URL.createObjectURL(blob) };
+    const recording = { blob, durationSec, url: null, downloadUrl: URL.createObjectURL(blob), highlights: [...highlights.current] };
     setPending(recording);
     await submit(recording);
   }
@@ -145,7 +150,14 @@ export function Recorder() {
         recording = { ...recording, url: uploaded.url };
         setPending(recording);
       }
-      const id = await createMeeting({ title: title.trim(), audioUrl: recording.url!, durationSec: recording.durationSec, source: 'record', template });
+      const id = await createMeeting({
+        title: title.trim(),
+        audioUrl: recording.url!,
+        durationSec: recording.durationSec,
+        source: 'record',
+        template,
+        highlights: recording.highlights,
+      });
       setPending(null);
       setPhase('idle');
       router.push(`/meetings/${id}`);
@@ -187,6 +199,18 @@ export function Recorder() {
             <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" />
             {formatTimestamp(elapsed * 1000)}
           </span>
+          <Button
+            variant="outline"
+            disabled={highlightCount >= MAX_CLIPS_PER_MEETING}
+            onClick={() => {
+              const s = session.current;
+              if (!s) return;
+              highlights.current.push(Date.now() - s.startedAt);
+              setHighlightCount(highlights.current.length);
+            }}
+          >
+            Highlight{highlightCount > 0 ? ` (${highlightCount})` : ''}
+          </Button>
           <Button variant="destructive" onClick={stop}>Stop and transcribe</Button>
         </div>
       )}

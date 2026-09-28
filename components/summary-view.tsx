@@ -21,21 +21,14 @@ export function SummaryView({ title, summary, onSeek }: { title: string; summary
         {copied ? 'Copied' : 'Copy as Markdown'}
       </Button>
       <p className="leading-relaxed">{summary.overview}</p>
+      {(summary.highlights ?? []).length > 0 && (
+        <Section title="Highlights">
+          <TimestampList items={summary.highlights ?? []} onSeek={onSeek} />
+        </Section>
+      )}
       {(summary.keyMoments ?? []).length > 0 && (
         <Section title="Key moments">
-          <ul className="space-y-1">
-            {(summary.keyMoments ?? []).map((k, i) => {
-              const ms = timestampToMs(k.timestamp);
-              return (
-                <li key={i}>
-                  {ms !== null ? (
-                    <button type="button" onClick={() => onSeek(ms)} className="mr-2 font-mono text-xs text-muted-foreground hover:underline">{k.timestamp}</button>
-                  ) : null}
-                  {k.label}
-                </li>
-              );
-            })}
-          </ul>
+          <TimestampList items={summary.keyMoments ?? []} onSeek={onSeek} />
         </Section>
       )}
       <Section title="Action items">
@@ -73,6 +66,24 @@ export function SummaryView({ title, summary, onSeek }: { title: string; summary
         </Section>
       )}
     </div>
+  );
+}
+
+function TimestampList({ items, onSeek }: { items: { timestamp: string; label: string }[]; onSeek: (ms: number) => void }) {
+  return (
+    <ul className="space-y-1">
+      {items.map((k, i) => {
+        const ms = timestampToMs(k.timestamp);
+        return (
+          <li key={i}>
+            {ms !== null ? (
+              <button type="button" onClick={() => onSeek(ms)} className="mr-2 font-mono text-xs text-muted-foreground hover:underline">{k.timestamp}</button>
+            ) : null}
+            {k.label}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

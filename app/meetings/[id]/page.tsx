@@ -4,6 +4,7 @@ import { MeetingView } from '@/components/meeting-view';
 import { db } from '@/lib/db';
 import { meetings, utterances } from '@/lib/db/schema';
 import { isUuid } from '@/lib/ids';
+import { listClips } from '@/lib/clips/queries';
 import { parseSeekParam } from '@/lib/transcript/format';
 
 export default async function MeetingPage({
@@ -18,10 +19,11 @@ export default async function MeetingPage({
   const meeting = await db.query.meetings.findFirst({ where: eq(meetings.id, id) });
   if (!meeting) notFound();
   const lines = await db
-    .select({ id: utterances.id, speaker: utterances.speaker, startMs: utterances.startMs, text: utterances.text })
+    .select({ id: utterances.id, speaker: utterances.speaker, startMs: utterances.startMs, endMs: utterances.endMs, text: utterances.text })
     .from(utterances)
     .where(eq(utterances.meetingId, id))
     .orderBy(asc(utterances.startMs));
+  const clipList = await listClips(id);
   const { t } = await searchParams;
 
   return (
@@ -41,6 +43,7 @@ export default async function MeetingPage({
         template: meeting.template,
       }}
       lines={lines}
+      clips={clipList}
       initialSeekMs={parseSeekParam(t)}
     />
   );
