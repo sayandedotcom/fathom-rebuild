@@ -23,7 +23,7 @@ export function ChatPanel({ meetingId, onSeek }: { meetingId: string; onSeek: (m
   }
 
   return (
-    <div className="flex h-[60vh] flex-col rounded-md border">
+    <div className="flex h-[60vh] flex-col lg:h-auto lg:min-h-0 lg:flex-1">
       <div className="flex-1 space-y-3 overflow-y-auto p-3 text-sm">
         {messages.length === 0 && (
           <div className="space-y-2">

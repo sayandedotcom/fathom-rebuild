@@ -251,16 +251,16 @@ export function MeetingView({ meeting, lines, clips, initialSeekMs }: MeetingVie
       )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr_380px]">
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Summary</h2>
+        <Panel title="Summary">
           {meeting.summary ? <SummaryView title={meeting.title} summary={meeting.summary} onSeek={seek} /> : <p className="text-sm text-muted-foreground">Not available yet.</p>}
-          <h2 className="pt-4 text-lg font-semibold">Clips</h2>
-          <ClipsPanel clips={shownClips} onSeek={seek} onChanged={() => router.refresh()} onError={setActionError} />
-        </section>
-        <section className="space-y-3 lg:max-h-[75vh] lg:overflow-y-auto">
-          <h2 className="text-lg font-semibold">Transcript</h2>
+          <div className="space-y-3 border-t pt-4">
+            <h3 className="font-semibold">Clips</h3>
+            <ClipsPanel clips={shownClips} onSeek={seek} onChanged={() => router.refresh()} onError={setActionError} />
+          </div>
+        </Panel>
+        <Panel title="Transcript">
           {meeting.status === 'ready' && selection && (
-            <div className="sticky top-0 z-10 flex items-center gap-2 bg-background py-1">
+            <div className="sticky top-0 z-10 flex items-center gap-2 bg-card py-1">
               <Button size="sm" onClick={clipSelection} disabled={clipping}>
                 Clip {formatTimestamp(selection.startMs)}–{formatTimestamp(selection.endMs)}
               </Button>
@@ -279,16 +279,26 @@ export function MeetingView({ meeting, lines, clips, initialSeekMs }: MeetingVie
           ) : (
             <p className="text-sm text-muted-foreground">Not available yet.</p>
           )}
-        </section>
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Ask about this meeting</h2>
+        </Panel>
+        <Panel title="Ask about this meeting" flush={meeting.status === 'ready'}>
           {meeting.status === 'ready' ? (
             <ChatPanel meetingId={meeting.id} onSeek={seek} />
           ) : (
             <p className="text-sm text-muted-foreground">Chat is available once processing finishes.</p>
           )}
-        </section>
+        </Panel>
       </div>
     </main>
+  );
+}
+
+// One card per column so Summary, Transcript and Ask read as three equal panes.
+// `flush` drops the body padding and scrolling for children that manage their own (the chat).
+function Panel({ title, flush = false, children }: { title: string; flush?: boolean; children: React.ReactNode }) {
+  return (
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card lg:h-[75vh]">
+      <h2 className="border-b px-4 py-3 text-base font-semibold">{title}</h2>
+      <div className={flush ? 'flex min-h-0 flex-1 flex-col' : 'min-h-0 flex-1 space-y-4 overflow-y-auto p-4'}>{children}</div>
+    </section>
   );
 }
