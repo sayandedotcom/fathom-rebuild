@@ -1,19 +1,24 @@
 import { and, asc, count, eq, inArray, isNotNull, lt, or } from 'drizzle-orm';
 import { db } from '../db';
 import { clips } from '../db/schema';
-import { CLIP_CUT_TIMEOUT_MS, type ClipItem } from './logic';
+import { CLIP_CUT_TIMEOUT_MS, CLIP_PENDING_TIMEOUT_MS, type ClipItem } from './logic';
 
 // A function that died mid-cut (or before it started) would leave the clip busy forever; this frees it for Retry.
+// `cutting` clips get the short timeout; ranged-but-still-`pending` ones get a longer one, since they can be
+// waiting behind the summary and earlier cuts in the same after() rather than stuck.
 export async function failStaleClips(meetingId: string): Promise<void> {
-  const cutoff = new Date(Date.now() - CLIP_CUT_TIMEOUT_MS);
+  const cuttingCutoff = new Date(Date.now() - CLIP_CUT_TIMEOUT_MS);
+  const pendingCutoff = new Date(Date.now() - CLIP_PENDING_TIMEOUT_MS);
   await db
     .update(clips)
     .set({ status: 'failed', error: 'Cutting the clip timed out.' })
     .where(
       and(
         eq(clips.meetingId, meetingId),
-        lt(clips.updatedAt, cutoff),
-        or(eq(clips.status, 'cutting'), and(eq(clips.status, 'pending'), isNotNull(clips.startMs))),
+        or(
+          and(eq(clips.status, 'cutting'), lt(clips.updatedAt, cuttingCutoff)),
+          and(eq(clips.status, 'pending'), isNotNull(clips.startMs), lt(clips.updatedAt, pendingCutoff)),
+        ),
       ),
     );
 }

@@ -14,7 +14,12 @@ export const maxDuration = 300;
 
 const bodySchema = z.discriminatedUnion('origin', [
   z.object({ origin: z.literal('live') }),
-  z.object({ origin: z.literal('manual'), startMs: z.number().int().nonnegative(), endMs: z.number().int().nonnegative() }),
+  z.object({
+    origin: z.literal('manual'),
+    startMs: z.number().int().nonnegative(),
+    endMs: z.number().int().nonnegative(),
+    title: z.string().trim().min(1).max(200).optional(),
+  }),
 ]);
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -56,15 +61,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   const range = selectionRange(parsed.data.startMs, parsed.data.endMs, meeting.durationSec === null ? null : meeting.durationSec * 1000);
   if ('error' in range) return NextResponse.json({ error: range.error }, { status: 400 });
-  const [first] = await db
-    .select({ text: utterances.text })
-    .from(utterances)
-    .where(and(eq(utterances.meetingId, id), gte(utterances.startMs, range.startMs), lt(utterances.startMs, range.endMs)))
-    .orderBy(asc(utterances.startMs))
-    .limit(1);
+  let title = parsed.data.title;
+  if (title === undefined) {
+    const [first] = await db
+      .select({ text: utterances.text })
+      .from(utterances)
+      .where(and(eq(utterances.meetingId, id), gte(utterances.startMs, range.startMs), lt(utterances.startMs, range.endMs)))
+      .orderBy(asc(utterances.startMs))
+      .limit(1);
+    title = first ? clipTitleFromText(first.text) : '';
+  }
   const [clip] = await db
     .insert(clips)
-    .values({ meetingId: id, origin: 'manual', ...range, title: first ? clipTitleFromText(first.text) : '', shareToken: newShareToken() })
+    .values({ meetingId: id, origin: 'manual', ...range, title, shareToken: newShareToken() })
     .returning({ id: clips.id });
   after(() => cutClip(clip.id));
   return NextResponse.json({ id: clip.id }, { status: 201 });

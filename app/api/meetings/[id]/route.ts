@@ -1,5 +1,5 @@
 import { del } from '@vercel/blob';
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { after, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { leaveCall } from '@/lib/bot/recall';
@@ -60,15 +60,15 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (meeting.status === 'in_meeting' && meeting.recallBotId) {
     await leaveCall(meeting.recallBotId).catch((err) => console.error('Recall leaveCall on delete failed', id, err));
   }
-  const clipFiles = await db
-    .select({ audioUrl: clips.audioUrl })
-    .from(clips)
-    .where(and(eq(clips.meetingId, id), isNotNull(clips.audioUrl)));
-  const files = [meeting.audioUrl, ...clipFiles.map((c) => c.audioUrl)].filter((u): u is string => u !== null);
+  // Delete the clip rows first (RETURNING their audio_url) so a cut finishing concurrently can't write a fresh
+  // audio_url to a row we've already read, leaving that new Blob orphaned; ON DELETE CASCADE would delete such
+  // a row anyway once the meeting goes, but never hand its URL back for cleanup.
+  const deletedClips = await db.delete(clips).where(eq(clips.meetingId, id)).returning({ audioUrl: clips.audioUrl });
+  const files = [meeting.audioUrl, ...deletedClips.map((c) => c.audioUrl)].filter((u): u is string => u !== null);
   if (files.length > 0) {
     await del(files).catch((err) => console.error('Blob delete failed', id, err));
   }
-  // Utterances and clips go with the row (ON DELETE CASCADE); background work for this meeting then updates nothing.
+  // Utterances go with the row (ON DELETE CASCADE); background work for this meeting then updates nothing.
   await db.delete(meetings).where(eq(meetings.id, id));
   return new NextResponse(null, { status: 204 });
 }

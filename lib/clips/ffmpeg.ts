@@ -10,9 +10,11 @@ const CUT_TIMEOUT_MS = 120_000;
 export function ffmpegCutArgs(sourceUrl: string, startMs: number, endMs: number): string[] {
   return [
     '-hide_banner', '-loglevel', 'error',
-    '-ss', (startMs / 1000).toFixed(3), '-i', sourceUrl,
+    '-ss', (startMs / 1000).toFixed(3),
+    '-protocol_whitelist', 'http,tcp',
+    '-i', sourceUrl,
     '-t', ((endMs - startMs) / 1000).toFixed(3),
-    '-vn', '-c:a', 'libmp3lame', '-b:a', '96k', '-f', 'mp3', 'pipe:1',
+    '-vn', '-c:a', 'libmp3lame', '-b:a', '96k', '-map_metadata', '-1', '-f', 'mp3', 'pipe:1',
   ];
 }
 
@@ -68,6 +70,8 @@ function startSourceProxy(sourceUrl: string): Promise<{ port: number; close: () 
     server.once('error', reject);
     server.listen(0, '127.0.0.1', () => {
       server.off('error', reject);
+      // A post-listen error (e.g. an accepted socket misbehaving) would otherwise be unhandled and crash the process.
+      server.on('error', (err) => console.error('Clip source proxy error', err));
       const address = server.address();
       if (address === null || typeof address === 'string') {
         close();

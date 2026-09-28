@@ -28,10 +28,14 @@ export function ClipsPanel({ clips, onSeek, onChanged, onError }: Props) {
 
   async function act(res: Promise<Response>, fallback: string) {
     onError(null);
-    const r = await res;
-    if (!r.ok) {
-      const data = (await r.json().catch(() => ({}))) as { error?: string };
-      onError(data.error ?? fallback);
+    try {
+      const r = await res;
+      if (!r.ok) {
+        const data = (await r.json().catch(() => ({}))) as { error?: string };
+        onError(data.error ?? fallback);
+      }
+    } catch {
+      onError(fallback);
     }
     onChanged();
   }

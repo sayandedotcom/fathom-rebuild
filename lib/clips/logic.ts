@@ -6,6 +6,9 @@ export const LIVE_AFTER_MS = 5_000;
 // Snapping to whole utterances may widen an edge by at most this much, so one long monologue can't swallow minutes.
 export const MAX_SNAP_MS = 15_000;
 export const CLIP_CUT_TIMEOUT_MS = 3 * 60 * 1000;
+// A ranged-but-still-pending clip waits behind the summary and any earlier cuts in the same after(), so it needs
+// a longer grace period than one already `cutting` before it's considered stuck.
+export const CLIP_PENDING_TIMEOUT_MS = 10 * 60 * 1000;
 export const MAX_CLIPS_PER_MEETING = 50;
 
 export type ClipRange = { startMs: number; endMs: number };
@@ -94,4 +97,14 @@ export function visibleClips<T extends { startMs: number | null }>(clips: T[], m
 
 export function isShareToken(s: string): boolean {
   return /^[A-Za-z0-9_-]{22}$/.test(s);
+}
+
+export type ExcerptLine<T> = T & { partial: boolean };
+
+// The share page's excerpt: only utterances that start inside the clip, plus (if it began earlier) the single
+// utterance straddling the clip's start, flagged so the page can render it as leading "…" context.
+export function excerptLines<T extends { startMs: number; endMs: number }>(lines: T[], range: ClipRange): ExcerptLine<T>[] {
+  const inside = lines.filter((l) => l.startMs >= range.startMs && l.startMs < range.endMs).map((l) => ({ ...l, partial: false }));
+  const lead = lines.find((l) => l.startMs < range.startMs && l.endMs > range.startMs);
+  return lead ? [{ ...lead, partial: true }, ...inside] : inside;
 }

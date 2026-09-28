@@ -2,7 +2,7 @@ import { and, asc, eq, gt, lt } from 'drizzle-orm';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
-import { isShareToken } from '@/lib/clips/logic';
+import { excerptLines, isShareToken } from '@/lib/clips/logic';
 import { db } from '@/lib/db';
 import { clips, meetings, utterances } from '@/lib/db/schema';
 import { formatTimestamp } from '@/lib/transcript/format';
@@ -49,12 +49,13 @@ export default async function ClipPage({ params }: { params: Promise<{ token: st
     );
   }
 
-  const lines = await db
-    .select({ id: utterances.id, speaker: utterances.speaker, startMs: utterances.startMs, text: utterances.text })
+  const overlapping = await db
+    .select({ id: utterances.id, speaker: utterances.speaker, startMs: utterances.startMs, endMs: utterances.endMs, text: utterances.text })
     .from(utterances)
     .where(and(eq(utterances.meetingId, clip.meetingId), lt(utterances.startMs, clip.endMs), gt(utterances.endMs, clip.startMs)))
     .orderBy(asc(utterances.startMs));
   const clipStart = clip.startMs;
+  const lines = excerptLines(overlapping, { startMs: clip.startMs, endMs: clip.endMs });
 
   return (
     <main className="mx-auto w-full max-w-2xl space-y-4 p-6">
@@ -68,7 +69,10 @@ export default async function ClipPage({ params }: { params: Promise<{ token: st
           <li key={l.id}>
             <span className="mr-2 font-mono text-xs text-muted-foreground">{formatTimestamp(Math.max(0, l.startMs - clipStart))}</span>
             <span className="font-medium">{speakerName(l.speaker, clip.speakerNames)}</span>
-            <p className="mt-1 leading-relaxed">{l.text}</p>
+            <p className="mt-1 leading-relaxed">
+              {l.partial ? '… ' : ''}
+              {l.text}
+            </p>
           </li>
         ))}
       </ol>

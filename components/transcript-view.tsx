@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { type ClipRange, rangeFromLines } from '@/lib/clips/logic';
 import { formatTimestamp } from '@/lib/transcript/format';
 import { speakerName } from '@/lib/transcript/speakers';
@@ -24,23 +24,44 @@ type Props = {
 };
 
 export function TranscriptView({ lines, activeId, onSeek, speakerNames, onRename, clipLineIds, onSelectRange }: Props) {
+  const listRef = useRef<HTMLOListElement | null>(null);
+
+  // A drag can end (mouseup) outside the <ol> — over the player, a badge, even outside the window — so the
+  // selection is tracked via the document's own selectionchange instead of handlers on the list itself.
+  useEffect(() => {
+    function selectedRange(): ClipRange | null {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) return null;
+      const list = listRef.current;
+      const lineId = (node: Node | null) => {
+        const el = node instanceof Element ? node : node?.parentElement;
+        const li = el?.closest('li[data-line-id]');
+        if (!li || !list?.contains(li)) return null;
+        return Number(li.getAttribute('data-line-id'));
+      };
+      const a = lineId(sel.anchorNode);
+      const b = lineId(sel.focusNode);
+      return a === null || b === null ? null : rangeFromLines(lines, a, b);
+    }
+
+    let raf = 0;
+    function onSelectionChange() {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => onSelectRange(selectedRange()));
+    }
+
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', onSelectionChange);
+      cancelAnimationFrame(raf);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines]);
+
   if (lines.length === 0) return <p className="text-sm text-muted-foreground">No speech was detected.</p>;
 
-  function selectedRange(): ClipRange | null {
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed) return null;
-    const lineId = (node: Node | null) => {
-      const el = node instanceof Element ? node : node?.parentElement;
-      const li = el?.closest('li[data-line-id]');
-      return li ? Number(li.getAttribute('data-line-id')) : null;
-    };
-    const a = lineId(sel.anchorNode);
-    const b = lineId(sel.focusNode);
-    return a === null || b === null ? null : rangeFromLines(lines, a, b);
-  }
-
   return (
-    <ol className="space-y-3 text-sm" onMouseUp={() => onSelectRange(selectedRange())} onKeyUp={() => onSelectRange(selectedRange())}>
+    <ol ref={listRef} className="space-y-3 text-sm">
       {lines.map((l) => (
         <li
           key={l.id}

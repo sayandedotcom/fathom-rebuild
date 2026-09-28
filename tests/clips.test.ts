@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   botHighlightOffset,
   clipTitleFromText,
+  excerptLines,
   isShareToken,
   labelsForClips,
   linesInClips,
@@ -157,6 +158,33 @@ describe('visibleClips', () => {
     expect(visibleClips(clips, 'summarizing')).toHaveLength(2);
     expect(visibleClips(clips, 'ready')).toEqual([{ startMs: 1_000 }]);
     expect(visibleClips(clips, 'failed')).toEqual([{ startMs: 1_000 }]);
+  });
+});
+
+describe('excerptLines', () => {
+  const lines = [
+    { id: 1, startMs: 0, endMs: 8_000 },
+    { id: 2, startMs: 8_000, endMs: 20_000 },
+    { id: 3, startMs: 20_000, endMs: 30_000 },
+    { id: 4, startMs: 30_000, endMs: 40_000 },
+  ];
+  it('includes only lines starting inside the range when the clip starts on an utterance boundary', () => {
+    expect(excerptLines(lines, { startMs: 8_000, endMs: 30_000 })).toEqual([
+      { id: 2, startMs: 8_000, endMs: 20_000, partial: false },
+      { id: 3, startMs: 20_000, endMs: 30_000, partial: false },
+    ]);
+  });
+  it('leads with the straddling utterance flagged partial when the clip starts mid-utterance', () => {
+    expect(excerptLines(lines, { startMs: 12_000, endMs: 30_000 })).toEqual([
+      { id: 2, startMs: 8_000, endMs: 20_000, partial: true },
+      { id: 3, startMs: 20_000, endMs: 30_000, partial: false },
+    ]);
+  });
+  it('excludes a line that starts exactly at the clip end', () => {
+    expect(excerptLines(lines, { startMs: 0, endMs: 20_000 })).toEqual([
+      { id: 1, startMs: 0, endMs: 8_000, partial: false },
+      { id: 2, startMs: 8_000, endMs: 20_000, partial: false },
+    ]);
   });
 });
 

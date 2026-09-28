@@ -10,14 +10,16 @@ export async function cutClip(id: string): Promise<void> {
     .update(clips)
     .set({ status: 'cutting', error: null })
     .where(and(eq(clips.id, id), inArray(clips.status, ['pending', 'failed']), isNotNull(clips.startMs), isNotNull(clips.endMs)))
-    .returning({ meetingId: clips.meetingId, startMs: clips.startMs, endMs: clips.endMs });
+    .returning({ meetingId: clips.meetingId, startMs: clips.startMs, endMs: clips.endMs, shareToken: clips.shareToken });
   if (!claimed) return;
   const cutting = and(eq(clips.id, id), eq(clips.status, 'cutting'));
   try {
     const [meeting] = await db.select({ audioUrl: meetings.audioUrl }).from(meetings).where(eq(meetings.id, claimed.meetingId));
     if (!meeting?.audioUrl) throw new Error('the meeting has no recording');
     const audio = await cutAudio(meeting.audioUrl, claimed.startMs!, claimed.endMs!);
-    const blob = await put(`clips/${id}.mp3`, audio, { access: 'public', contentType: 'audio/mpeg', addRandomSuffix: true });
+    // Named by the share token, not the clip id: the share page renders this URL, and the id would let a
+    // recipient call the unauthenticated DELETE /api/clips/<id>.
+    const blob = await put(`clips/${claimed.shareToken}.mp3`, audio, { access: 'public', contentType: 'audio/mpeg', addRandomSuffix: true });
     const saved = await db.update(clips).set({ status: 'ready', audioUrl: blob.url }).where(cutting).returning({ id: clips.id });
     // The clip (or its meeting) was deleted while cutting: don't leave an orphaned file behind.
     if (saved.length === 0) await del(blob.url).catch((err) => console.error('Blob delete of orphan clip failed', id, err));

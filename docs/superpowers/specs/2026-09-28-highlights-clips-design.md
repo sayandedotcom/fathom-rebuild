@@ -61,7 +61,7 @@ Decisions:
 - `cutClip(id)` runs in `after()`:
   1. Atomic claim: `UPDATE clips SET status='cutting' WHERE id=$1 AND status IN ('pending','failed') AND start_ms IS NOT NULL RETURNING`.
   2. `ffmpeg-static`: `-ss <start> -to <end> -i <meeting audio_url> -vn -c:a libmp3lame -b:a 96k -f mp3 pipe:1`. HTTP input seeking means only the needed ranges are fetched.
-  3. `put('clips/<id>.mp3', …, { access: 'public', addRandomSuffix: true })`.
+  3. `put('clips/<share_token>.mp3', …, { access: 'public', addRandomSuffix: true })`.
   4. Guarded `UPDATE … SET status='ready', audio_url=… WHERE id=$1 AND status='cutting'`. If the clip was deleted meanwhile, the new Blob is removed.
 - **Errors:** ffmpeg or upload errors set `status='failed'` with a message. A clip stuck in `cutting` for more than 3 minutes is marked failed when it's next read (a `stale.ts` pattern). `POST /api/clips/:id/retry` runs the cut again.
 - The ffmpeg binary must be traced into the route's function bundle. Before writing it, check the Next 16 docs in `node_modules/next/dist/docs` for the current file-tracing config. Verify it on a deployed function.
