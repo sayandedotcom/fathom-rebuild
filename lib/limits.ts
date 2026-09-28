@@ -1,5 +1,7 @@
 export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 export const MAX_DURATION_SEC = 2 * 60 * 60;
+// There is no auth, so this caps how many paid Recall bots can run at once.
+export const MAX_ACTIVE_BOTS = 3;
 
 export function validateMediaFile(file: { type: string; size: number }): string | null {
   if (!/^(audio|video)\//.test(file.type)) return 'Please choose an audio or video file.';

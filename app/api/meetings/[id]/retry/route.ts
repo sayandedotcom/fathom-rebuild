@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { meetings, utterances } from '@/lib/db/schema';
 import { isUuid } from '@/lib/ids';
 import { copyBotAudioAndSubmit } from '@/lib/bot/finish';
+import { canRetry } from '@/lib/bot/outcome';
 import { submitTranscription } from '@/lib/pipeline/assemblyai';
 import { summarizeMeeting } from '@/lib/pipeline/advance';
 
@@ -12,9 +13,12 @@ export const maxDuration = 300;
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const meeting = await db.query.meetings.findFirst({ where: eq(meetings.id, id), columns: { status: true, audioUrl: true, recallBotId: true } });
+  const meeting = await db.query.meetings.findFirst({ where: eq(meetings.id, id), columns: { status: true, audioUrl: true, recallBotId: true, source: true, error: true } });
   if (!meeting) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (meeting.status !== 'failed') return NextResponse.json({ error: 'Only failed meetings can be retried' }, { status: 409 });
+  if (!canRetry(meeting)) {
+    return NextResponse.json({ error: 'The bot never recorded anything in this meeting, so there is nothing to retry' }, { status: 409 });
+  }
 
   const [{ n }] = await db.select({ n: count() }).from(utterances).where(eq(utterances.meetingId, id));
   const isFailed = and(eq(meetings.id, id), eq(meetings.status, 'failed'));

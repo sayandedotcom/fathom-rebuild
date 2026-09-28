@@ -1,5 +1,5 @@
 import { requireEnv } from '../env';
-import type { RecallStatusChange } from './outcome';
+import { BOT_RECORDING_CAP_SEC, type RecallStatusChange } from './outcome';
 
 export type RecallBot = { id: string; status_changes: RecallStatusChange[]; recordings: { id: string }[] };
 
@@ -28,17 +28,19 @@ async function recall<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (text ? JSON.parse(text) : {}) as T;
 }
 
+export function botCreateBody(meetingUrl: string, meetingId: string) {
+  return {
+    meeting_url: meetingUrl,
+    bot_name: 'Fanthom Notetaker',
+    recording_config: { audio_mixed_mp3: {} },
+    // Recall enforces the recording cap itself, so it holds even when nobody has the meeting page open.
+    automatic_leave: { waiting_room_timeout: waitingRoomTimeoutSec(), in_call_recording_timeout: BOT_RECORDING_CAP_SEC },
+    metadata: { meeting_id: meetingId },
+  };
+}
+
 export async function createBot(meetingUrl: string, meetingId: string): Promise<string> {
-  const bot = await recall<{ id: string }>('/bot/', {
-    method: 'POST',
-    body: JSON.stringify({
-      meeting_url: meetingUrl,
-      bot_name: 'Fanthom Notetaker',
-      recording_config: { audio_mixed_mp3: {} },
-      automatic_leave: { waiting_room_timeout: waitingRoomTimeoutSec() },
-      metadata: { meeting_id: meetingId },
-    }),
-  });
+  const bot = await recall<{ id: string }>('/bot/', { method: 'POST', body: JSON.stringify(botCreateBody(meetingUrl, meetingId)) });
   return bot.id;
 }
 

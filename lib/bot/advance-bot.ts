@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { type Meeting, meetings } from '../db/schema';
 import { copyBotAudioAndSubmit } from './finish';
-import { BOT_TEXT, botOutcome, botOverCap, recordingStartedAt } from './outcome';
+import { BOT_TEXT, botMeetingExpired, botOutcome, botOverCap, recordingStartedAt } from './outcome';
 import { getBot, leaveCall, type RecallBot } from './recall';
 
 export const STOPPING_AT_CAP = 'Stopping at the 2-hour limit. The recording will be processed next.';
@@ -10,6 +10,15 @@ export const STOPPING_REQUESTED = 'Stopping. The recording will be processed nex
 
 export async function advanceBotMeeting(meeting: Meeting): Promise<void> {
   if (!meeting.recallBotId) return;
+  const inMeeting = and(eq(meetings.id, meeting.id), eq(meetings.status, 'in_meeting'));
+  // Safety net: a missed webhook plus a permanently failing Recall read must not leave the meeting stuck forever.
+  if (botMeetingExpired(meeting.createdAt, new Date())) {
+    await db
+      .update(meetings)
+      .set({ status: 'failed', error: 'The bot stopped responding, so the meeting could not be recorded.', botStatus: null })
+      .where(inMeeting);
+    return;
+  }
   let bot: RecallBot;
   try {
     bot = await getBot(meeting.recallBotId);
@@ -18,7 +27,6 @@ export async function advanceBotMeeting(meeting: Meeting): Promise<void> {
     console.error('Recall getBot failed', meeting.id, err);
     return;
   }
-  const inMeeting = and(eq(meetings.id, meeting.id), eq(meetings.status, 'in_meeting'));
   const outcome = botOutcome(bot.status_changes, bot.recordings.length > 0);
 
   if (outcome.kind === 'failed') {

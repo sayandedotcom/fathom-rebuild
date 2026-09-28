@@ -6,6 +6,7 @@ import { ChatPanel } from '@/components/chat-panel';
 import { StatusStepper } from '@/components/status-stepper';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { canRetry } from '@/lib/bot/outcome';
 import { SummaryView } from '@/components/summary-view';
 import { type Line, TranscriptView } from '@/components/transcript-view';
 import type { MeetingSource, MeetingStatus } from '@/lib/db/schema';
@@ -147,9 +148,11 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
       {meeting.status === 'failed' && (
         <div className="rounded-md border border-destructive p-4 text-sm text-destructive">
           <p>{meeting.error ?? 'Processing failed.'}</p>
-          <Button size="sm" variant="outline" className="mt-2" onClick={retry} disabled={retrying}>
-            {retrying ? 'Retrying…' : 'Retry'}
-          </Button>
+          {canRetry(meeting) && (
+            <Button size="sm" variant="outline" className="mt-2" onClick={retry} disabled={retrying}>
+              {retrying ? 'Retrying…' : 'Retry'}
+            </Button>
+          )}
         </div>
       )}
 

@@ -14,6 +14,11 @@ export const BOT_TEXT = {
 
 const REMOVED = 'The bot was removed or not allowed to record.';
 
+// Stop recording 2 minutes before the 2h processing limit, so leave latency can't push the audio over it.
+export const BOT_RECORDING_CAP_SEC = MAX_DURATION_SEC - 120;
+// No bot can still be joining or recording this long after creation (waiting room + cap + margin).
+export const BOT_MEETING_MAX_AGE_MS = (MAX_DURATION_SEC + 3600) * 1000;
+
 function latestChange(changes: RecallStatusChange[]): RecallStatusChange | null {
   let latest: RecallStatusChange | null = null;
   for (const c of changes) {
@@ -29,6 +34,14 @@ function endedMessage(subCode: string | null): string {
 }
 
 export function botOutcome(changes: RecallStatusChange[], hasRecording: boolean): BotOutcome {
+  // Terminal codes win even if Recall appends later ones (e.g. media_expired after done).
+  const fatal = changes.find((c) => c.code === 'fatal');
+  if (fatal) return { kind: 'failed', message: `The bot hit an error: ${fatal.sub_code ?? 'unknown'}.` };
+  if (changes.some((c) => c.code === 'done')) {
+    const recorded = changes.some((c) => c.code === 'in_call_recording');
+    if (recorded && hasRecording) return { kind: 'recorded' };
+    return { kind: 'failed', message: endedMessage(changes.find((c) => c.code === 'call_ended')?.sub_code ?? null) };
+  }
   const latest = latestChange(changes);
   switch (latest?.code) {
     case 'in_waiting_room':
@@ -43,13 +56,6 @@ export function botOutcome(changes: RecallStatusChange[], hasRecording: boolean)
       return { kind: 'active', text: BOT_TEXT.processing };
     case 'recording_permission_denied':
       return { kind: 'failed', message: REMOVED };
-    case 'fatal':
-      return { kind: 'failed', message: `The bot hit an error: ${latest.sub_code ?? 'unknown'}.` };
-    case 'done': {
-      const recorded = changes.some((c) => c.code === 'in_call_recording');
-      if (recorded && hasRecording) return { kind: 'recorded' };
-      return { kind: 'failed', message: endedMessage(changes.find((c) => c.code === 'call_ended')?.sub_code ?? null) };
-    }
     default:
       return { kind: 'active', text: BOT_TEXT.joining };
   }
@@ -61,5 +67,18 @@ export function recordingStartedAt(changes: RecallStatusChange[]): Date | null {
 }
 
 export function botOverCap(startedAt: Date | null, now: Date): boolean {
-  return startedAt !== null && now.getTime() - startedAt.getTime() > MAX_DURATION_SEC * 1000;
+  return startedAt !== null && now.getTime() - startedAt.getTime() > BOT_RECORDING_CAP_SEC * 1000;
+}
+
+export function botMeetingExpired(createdAt: Date, now: Date): boolean {
+  return now.getTime() - createdAt.getTime() > BOT_MEETING_MAX_AGE_MS;
+}
+
+// A bot meeting without audio can only be retried when the recording exists but copying it failed.
+export function canRetry(meeting: { source: string; audioUrl: string | null; error: string | null }): boolean {
+  if (meeting.source !== 'bot' || meeting.audioUrl !== null) return true;
+  return (
+    meeting.error?.startsWith('Copying the bot recording') === true ||
+    meeting.error?.startsWith('Could not process the bot recording') === true
+  );
 }

@@ -56,10 +56,10 @@ describe('recordingStartedAt / botOverCap', () => {
     expect(recordingStartedAt([ch('joining_call'), rec, ch('in_call_recording')])?.toISOString()).toBe(rec.created_at);
     expect(recordingStartedAt([ch('joining_call')])).toBeNull();
   });
-  it('is over the cap only after 2 hours of recording', () => {
+  it('is over the cap only after 1h58m of recording', () => {
     const start = new Date('2026-09-28T10:00:00Z');
-    expect(botOverCap(start, new Date('2026-09-28T12:00:00Z'))).toBe(false);
-    expect(botOverCap(start, new Date('2026-09-28T12:00:01Z'))).toBe(true);
+    expect(botOverCap(start, new Date('2026-09-28T11:58:00Z'))).toBe(false);
+    expect(botOverCap(start, new Date('2026-09-28T11:58:01Z'))).toBe(true);
     expect(botOverCap(null, new Date())).toBe(false);
   });
 });
