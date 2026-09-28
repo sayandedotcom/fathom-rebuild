@@ -1,22 +1,13 @@
-import { BotJoiner } from '@/components/bot-joiner';
-import { Recorder } from '@/components/recorder';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Uploader } from '@/components/uploader';
+import { NewMeetingTabs } from '@/components/new-meeting-tabs';
+import { parseNewMeetingTab } from '@/lib/new-meeting-tabs';
 
-export default function NewMeetingPage() {
+export default async function NewMeetingPage({ searchParams }: { searchParams: Promise<{ tab?: string | string[] }> }) {
+  const { tab } = await searchParams;
+
   return (
     <main className="mx-auto w-full max-w-xl space-y-6 p-6">
       <h1 className="text-2xl font-semibold">New meeting</h1>
-      <Tabs defaultValue="upload">
-        <TabsList>
-          <TabsTrigger value="upload">Upload</TabsTrigger>
-          <TabsTrigger value="record">Record</TabsTrigger>
-          <TabsTrigger value="bot">Join a meeting</TabsTrigger>
-        </TabsList>
-        <TabsContent value="upload" className="pt-4"><Uploader /></TabsContent>
-        <TabsContent value="record" keepMounted className="pt-4"><Recorder /></TabsContent>
-        <TabsContent value="bot" className="pt-4"><BotJoiner /></TabsContent>
-      </Tabs>
+      <NewMeetingTabs tab={parseNewMeetingTab(tab)} />
     </main>
   );
 }
