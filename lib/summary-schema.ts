@@ -20,6 +20,14 @@ export const summarySchema = z.object({
   sections: z
     .array(z.object({ heading: z.string(), items: z.array(z.string()) }))
     .describe('Template-specific sections; follow the instructions for which headings to use'),
+  highlights: z
+    .array(
+      z.object({
+        timestamp: z.string().describe('A highlighted timestamp, copied exactly from the instructions'),
+        label: z.string().describe('What is discussed in that moment, at most 8 words'),
+      }),
+    )
+    .describe('One entry per highlighted moment listed in the instructions; empty if none are listed'),
 });
 
 export type Summary = z.infer<typeof summarySchema>;
@@ -32,4 +40,5 @@ export const EMPTY_SUMMARY: Summary = {
   actionItems: [],
   keyMoments: [],
   sections: [],
+  highlights: [],
 };

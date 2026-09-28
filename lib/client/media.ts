@@ -34,6 +34,7 @@ export function createMeeting(input: {
   durationSec: number | null;
   source: 'upload' | 'record';
   template: MeetingTemplate;
+  highlights?: number[];
 }): Promise<string> {
   return postForId('/api/meetings', input);
 }

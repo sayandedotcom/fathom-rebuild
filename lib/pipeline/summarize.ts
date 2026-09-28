@@ -2,15 +2,19 @@ import { generateText, NoObjectGeneratedError, Output } from 'ai';
 import { llm } from '../llm';
 import { type Summary, summarySchema } from '../summary-schema';
 import { type MeetingTemplate, templateInstructions } from '../templates';
-import { SUMMARY_INSTRUCTIONS } from './prompts';
+import { highlightInstructions, SUMMARY_INSTRUCTIONS } from './prompts';
 
-export async function summarize(transcript: string, template: MeetingTemplate = 'general'): Promise<Summary> {
+export async function summarize(
+  transcript: string,
+  template: MeetingTemplate = 'general',
+  highlightTimestamps: string[] = [],
+): Promise<Summary> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const { output } = await generateText({
         model: llm(),
-        instructions: `${SUMMARY_INSTRUCTIONS}\n\n${templateInstructions(template)}`,
+        instructions: `${SUMMARY_INSTRUCTIONS}\n\n${templateInstructions(template)}\n\n${highlightInstructions(highlightTimestamps)}`,
         prompt: transcript,
         output: Output.object({ schema: summarySchema }),
       });

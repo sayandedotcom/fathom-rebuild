@@ -1,12 +1,14 @@
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { advanceBotMeeting } from '../bot/advance-bot';
 import { nameBotSpeakers } from '../bot/speakers';
+import { cutMeetingClips } from '../clips/cut';
+import { labelClips, placeLiveClips } from '../clips/place';
 import { db } from '../db';
 import { meetings, utterances } from '../db/schema';
 import { exceedsMaxDuration } from '../limits';
-import { EMPTY_SUMMARY } from '../summary-schema';
+import { EMPTY_SUMMARY, type Summary } from '../summary-schema';
 import { pickAutoTitle } from '../titles';
-import { formatTranscript } from '../transcript/format';
+import { formatTimestamp, formatTranscript } from '../transcript/format';
 import { getTranscription } from './assemblyai';
 import { mapUtterances } from './map-utterances';
 import { isStaleCopy, isStaleSummarizing } from './stale';
@@ -81,19 +83,30 @@ export async function advanceMeeting(id: string): Promise<void> {
 const MAX_SUMMARY_PASSES = 3;
 
 export async function summarizeMeeting(id: string): Promise<void> {
+  let placed: { id: string; startMs: number }[] = [];
+  let highlights: Summary['highlights'] = [];
   for (let pass = 1; pass <= MAX_SUMMARY_PASSES; pass++) {
     const meeting = await db.query.meetings.findFirst({
       where: eq(meetings.id, id),
-      columns: { speakerNames: true, template: true, titleIsAuto: true },
+      columns: { speakerNames: true, template: true, titleIsAuto: true, durationSec: true },
     });
     if (!meeting) return;
     const lines = await db
-      .select({ speaker: utterances.speaker, startMs: utterances.startMs, text: utterances.text })
+      .select({ speaker: utterances.speaker, startMs: utterances.startMs, endMs: utterances.endMs, text: utterances.text })
       .from(utterances)
       .where(eq(utterances.meetingId, id))
       .orderBy(asc(utterances.startMs));
+    // Placed here rather than in advanceMeeting so a retry or re-summary also places highlights a failed run never reached.
+    placed = await placeLiveClips(id, lines, meeting.durationSec);
     try {
-      const summary = lines.length === 0 ? EMPTY_SUMMARY : await summarize(formatTranscript(lines, meeting.speakerNames), meeting.template);
+      const summary =
+        lines.length === 0
+          ? EMPTY_SUMMARY
+          : await summarize(
+              formatTranscript(lines, meeting.speakerNames),
+              meeting.template,
+              placed.map((c) => formatTimestamp(c.startMs)),
+            );
       const unchanged =
         pass === MAX_SUMMARY_PASSES
           ? eq(meetings.id, id)
@@ -112,11 +125,20 @@ export async function summarizeMeeting(id: string): Promise<void> {
       if (autoTitle) {
         await db.update(meetings).set({ title: autoTitle }).where(and(eq(meetings.id, id), eq(meetings.titleIsAuto, true)));
       }
-      return;
+      highlights = summary.highlights ?? [];
+      break;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await db.update(meetings).set({ status: 'failed', error: `Summary failed: ${message}` }).where(eq(meetings.id, id));
-      return;
+      break;
     }
   }
+  // Labelling is cosmetic, so a failure here must not fail a meeting whose summary was saved.
+  try {
+    await labelClips(placed, highlights);
+  } catch (err) {
+    console.error('labelClips failed for meeting', id, err);
+  }
+  // Clips don't depend on the summary, so they're cut even when it failed.
+  await cutMeetingClips(id);
 }

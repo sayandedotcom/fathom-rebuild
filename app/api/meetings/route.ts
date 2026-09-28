@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { clips, meetings } from '@/lib/db/schema';
 import { db } from '@/lib/db';
-import { meetings } from '@/lib/db/schema';
+import { MAX_CLIPS_PER_MEETING } from '@/lib/clips/logic';
+import { newShareToken } from '@/lib/clips/token';
 import { MAX_DURATION_SEC } from '@/lib/limits';
 import { submitTranscription } from '@/lib/pipeline/assemblyai';
 import { MEETING_TEMPLATES } from '@/lib/templates';
@@ -16,6 +18,7 @@ const createSchema = z.object({
   }, 'audioUrl must be a Vercel Blob URL'),
   durationSec: z.number().int().nonnegative().max(MAX_DURATION_SEC).nullable(),
   source: z.enum(['upload', 'record']).default('upload'),
+  highlights: z.array(z.number().int().nonnegative().max(MAX_DURATION_SEC * 1000)).max(MAX_CLIPS_PER_MEETING).default([]),
 });
 
 export async function POST(req: Request) {
@@ -30,9 +33,14 @@ export async function POST(req: Request) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: `Could not start transcription: ${message}` }, { status: 502 });
   }
+  const { highlights, ...values } = parsed.data;
   const [meeting] = await db
     .insert(meetings)
-    .values({ ...parsed.data, ...resolveCreateTitle(parsed.data.title), assemblyaiId })
+    .values({ ...values, ...resolveCreateTitle(values.title), assemblyaiId })
     .returning({ id: meetings.id });
+  // Marks past the end of the recording are clamped when the clip is placed.
+  if (highlights.length > 0) {
+    await db.insert(clips).values(highlights.map((markMs) => ({ meetingId: meeting.id, origin: 'live' as const, markMs, shareToken: newShareToken() })));
+  }
   return NextResponse.json({ id: meeting.id }, { status: 201 });
 }

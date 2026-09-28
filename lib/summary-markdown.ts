@@ -6,6 +6,7 @@ export function summaryToMarkdown(title: string, s: Summary): string {
     if (items.length === 0) return;
     out.push(`## ${heading}`, ...items, '');
   };
+  section('Highlights', (s.highlights ?? []).map((h) => `- [${h.timestamp}] ${h.label}`));
   section(
     'Action items',
     s.actionItems.map((a) => {
