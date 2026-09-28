@@ -50,8 +50,39 @@ export const utterances = pgTable(
   ],
 );
 
+export const clipStatus = pgEnum('clip_status', ['pending', 'cutting', 'ready', 'failed']);
+export const clipOrigin = pgEnum('clip_origin', ['live', 'manual']);
+
+export const clips = pgTable(
+  'clips',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    meetingId: uuid('meeting_id')
+      .notNull()
+      .references(() => meetings.id, { onDelete: 'cascade' }),
+    origin: clipOrigin('origin').notNull(),
+    // Where a live highlight was clicked, in ms from the start of the recording.
+    markMs: integer('mark_ms'),
+    // Null until known: a live highlight gets its range once the transcript exists.
+    startMs: integer('start_ms'),
+    endMs: integer('end_ms'),
+    title: text('title').notNull().default(''),
+    status: clipStatus('status').notNull().default('pending'),
+    error: text('error'),
+    audioUrl: text('audio_url'),
+    shareToken: text('share_token').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index('clips_meeting_start_idx').on(t.meetingId, t.startMs)],
+);
+
 export type Meeting = typeof meetings.$inferSelect;
 export type MeetingStatus = Meeting['status'];
 export type MeetingSource = Meeting['source'];
 export type Utterance = typeof utterances.$inferSelect;
 export type NewUtterance = typeof utterances.$inferInsert;
+export type Clip = typeof clips.$inferSelect;
