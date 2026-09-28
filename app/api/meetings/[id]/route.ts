@@ -1,10 +1,11 @@
 import { del } from '@vercel/blob';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import { after, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { leaveCall } from '@/lib/bot/recall';
+import { failStaleClips, countBusyClips } from '@/lib/clips/queries';
 import { db } from '@/lib/db';
-import { meetings } from '@/lib/db/schema';
+import { clips, meetings } from '@/lib/db/schema';
 import { isUuid } from '@/lib/ids';
 import { advanceMeeting } from '@/lib/pipeline/advance';
 import { startResummarize } from '@/lib/pipeline/resummarize';
@@ -23,7 +24,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (meeting.status === 'in_meeting' || meeting.status === 'transcribing' || meeting.status === 'summarizing') {
     after(() => advanceMeeting(id));
   }
-  return NextResponse.json(meeting, { headers: { 'cache-control': 'no-store' } });
+  await failStaleClips(id);
+  const busyClips = await countBusyClips(id);
+  return NextResponse.json({ ...meeting, busyClips }, { headers: { 'cache-control': 'no-store' } });
 }
 
 const patchSchema = z
@@ -57,10 +60,15 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (meeting.status === 'in_meeting' && meeting.recallBotId) {
     await leaveCall(meeting.recallBotId).catch((err) => console.error('Recall leaveCall on delete failed', id, err));
   }
-  if (meeting.audioUrl) {
-    await del(meeting.audioUrl).catch((err) => console.error('Blob delete failed', id, err));
+  const clipFiles = await db
+    .select({ audioUrl: clips.audioUrl })
+    .from(clips)
+    .where(and(eq(clips.meetingId, id), isNotNull(clips.audioUrl)));
+  const files = [meeting.audioUrl, ...clipFiles.map((c) => c.audioUrl)].filter((u): u is string => u !== null);
+  if (files.length > 0) {
+    await del(files).catch((err) => console.error('Blob delete failed', id, err));
   }
-  // Utterances go with the row (ON DELETE CASCADE); background work for this meeting then updates nothing.
+  // Utterances and clips go with the row (ON DELETE CASCADE); background work for this meeting then updates nothing.
   await db.delete(meetings).where(eq(meetings.id, id));
   return new NextResponse(null, { status: 204 });
 }
