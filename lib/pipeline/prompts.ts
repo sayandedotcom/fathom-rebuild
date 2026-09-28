@@ -1,5 +1,5 @@
 export const SUMMARY_INSTRUCTIONS = `You summarize meeting transcripts for the people who attended.
-The transcript lines look like "[mm:ss] Speaker A: text". Speakers are anonymous letters; if participants address each other by name, use those names for owners, otherwise use "Speaker A" etc.
+The transcript lines look like "[mm:ss] Name: text". A speaker is either a real name or an anonymous label like "Speaker A". Use the name exactly as shown for owners; if a speaker is only a label but participants address them by name, use that name.
 Be specific and factual. Only include decisions and action items that are actually in the transcript. Never invent owners or deadlines.`;
 
 export function chatInstructions(title: string, transcript: string): string {

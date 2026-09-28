@@ -16,6 +16,7 @@ export function SearchResults({ query, hits }: { query: string; hits: SearchHit[
             </div>
             {h.snippet && (
               <p className="mt-1 text-sm text-muted-foreground">
+                {h.speaker && <span className="font-medium text-foreground">{h.speaker}: </span>}
                 {splitHighlights(h.snippet).map((p, j) =>
                   p.match ? <mark key={j} className="rounded bg-yellow-200 px-0.5 text-foreground">{p.text}</mark> : <span key={j}>{p.text}</span>,
                 )}

@@ -74,13 +74,18 @@ export async function advanceMeeting(id: string): Promise<void> {
 }
 
 export async function summarizeMeeting(id: string): Promise<void> {
+  const meeting = await db.query.meetings.findFirst({
+    where: eq(meetings.id, id),
+    columns: { speakerNames: true },
+  });
+  if (!meeting) return;
   const lines = await db
     .select({ speaker: utterances.speaker, startMs: utterances.startMs, text: utterances.text })
     .from(utterances)
     .where(eq(utterances.meetingId, id))
     .orderBy(asc(utterances.startMs));
   try {
-    const summary = lines.length === 0 ? EMPTY_SUMMARY : await summarize(formatTranscript(lines));
+    const summary = lines.length === 0 ? EMPTY_SUMMARY : await summarize(formatTranscript(lines, meeting.speakerNames));
     await db.update(meetings).set({ status: 'ready', summary, error: null }).where(eq(meetings.id, id));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

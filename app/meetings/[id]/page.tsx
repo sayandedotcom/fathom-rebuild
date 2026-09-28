@@ -37,6 +37,8 @@ export default async function MeetingPage({
         durationSec: meeting.durationSec,
         createdAt: meeting.createdAt.toISOString(),
         summary: meeting.summary,
+        speakerNames: meeting.speakerNames,
+        template: meeting.template,
       }}
       lines={lines}
       initialSeekMs={parseSeekParam(t)}

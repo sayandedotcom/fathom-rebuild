@@ -1,11 +1,13 @@
 import { sql } from 'drizzle-orm';
-import { customType, index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import type { Summary } from '../summary-schema';
+import { MEETING_TEMPLATES } from '../templates';
 
 const tsvector = customType<{ data: string }>({ dataType: () => 'tsvector' });
 
 export const meetingStatus = pgEnum('meeting_status', ['in_meeting', 'transcribing', 'summarizing', 'ready', 'failed']);
 export const meetingSource = pgEnum('meeting_source', ['upload', 'record', 'bot']);
+export const meetingTemplate = pgEnum('meeting_template', MEETING_TEMPLATES);
 
 export const meetings = pgTable('meetings', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -18,6 +20,9 @@ export const meetings = pgTable('meetings', {
   source: meetingSource('source').notNull().default('upload'),
   recallBotId: text('recall_bot_id').unique(),
   botStatus: text('bot_status'),
+  template: meetingTemplate('template').notNull().default('general'),
+  speakerNames: jsonb('speaker_names').$type<Record<string, string>>().notNull().default({}),
+  titleIsAuto: boolean('title_is_auto').notNull().default(false),
   summary: jsonb('summary').$type<Summary>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true })

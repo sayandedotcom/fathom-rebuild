@@ -15,7 +15,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!isUuid(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const meeting = await db.query.meetings.findFirst({
     where: eq(meetings.id, id),
-    columns: { title: true, status: true },
+    columns: { title: true, status: true, speakerNames: true },
   });
   if (!meeting) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (meeting.status !== 'ready') return NextResponse.json({ error: 'Meeting is not ready yet' }, { status: 409 });
@@ -29,7 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const result = streamText({
     model: llm(),
-    instructions: chatInstructions(meeting.title, formatTranscript(lines)),
+    instructions: chatInstructions(meeting.title, formatTranscript(lines, meeting.speakerNames)),
     messages: await convertToModelMessages(messages),
   });
   return createUIMessageStreamResponse({ stream: toUIMessageStream({ stream: result.stream }) });

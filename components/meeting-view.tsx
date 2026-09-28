@@ -12,6 +12,7 @@ import { type Line, TranscriptView } from '@/components/transcript-view';
 import type { MeetingSource, MeetingStatus } from '@/lib/db/schema';
 import type { Summary } from '@/lib/summary-schema';
 import { statusLabel } from '@/lib/status-label';
+import type { MeetingTemplate } from '@/lib/templates';
 import { formatTimestamp } from '@/lib/transcript/format';
 
 export type MeetingViewProps = {
@@ -26,6 +27,8 @@ export type MeetingViewProps = {
     durationSec: number | null;
     createdAt: string;
     summary: Summary | null;
+    speakerNames: Record<string, string>;
+    template: MeetingTemplate;
   };
   lines: Line[];
   initialSeekMs: number | null;
@@ -74,6 +77,21 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
   useStatusPolling(meeting.id, meeting.status, meeting.botStatus);
   const router = useRouter();
   const [retrying, setRetrying] = useState(false);
+
+  const [actionError, setActionError] = useState<string | null>(null);
+  async function renameSpeaker(label: string, name: string) {
+    setActionError(null);
+    const res = await fetch(`/api/meetings/${meeting.id}/speakers`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ label, name }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setActionError(data.error ?? 'Could not rename the speaker.');
+    }
+    router.refresh();
+  }
 
   async function retry() {
     setRetrying(true);
@@ -141,6 +159,7 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
           {meeting.durationSec !== null && ` · ${formatTimestamp(meeting.durationSec * 1000)}`}
         </p>
       </header>
+      {actionError && <p className="text-sm text-destructive">{actionError}</p>}
 
       {inProgress && (
         <div className="space-y-2 rounded-md border p-4">
@@ -188,7 +207,7 @@ export function MeetingView({ meeting, lines, initialSeekMs }: MeetingViewProps)
         <section className="space-y-3 lg:max-h-[75vh] lg:overflow-y-auto">
           <h2 className="text-lg font-semibold">Transcript</h2>
           {lines.length > 0 || meeting.status === 'ready' ? (
-            <TranscriptView lines={lines} activeId={activeId} onSeek={seek} />
+            <TranscriptView lines={lines} activeId={activeId} onSeek={seek} speakerNames={meeting.speakerNames} onRename={renameSpeaker} />
           ) : (
             <p className="text-sm text-muted-foreground">Not available yet.</p>
           )}
