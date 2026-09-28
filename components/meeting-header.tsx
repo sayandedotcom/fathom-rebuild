@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { TemplateSelect } from '@/components/template-select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { MeetingStatus } from '@/lib/db/schema';
 import { statusLabel } from '@/lib/status-label';
 import type { MeetingTemplate } from '@/lib/templates';
@@ -14,6 +15,22 @@ export function MeetingHeader({ meeting, onError }: { meeting: HeaderMeeting; on
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(meeting.title);
+
+  const [deleting, setDeleting] = useState(false);
+  async function remove() {
+    if (!window.confirm('Delete this meeting? This removes the recording and transcript permanently.')) return;
+    setDeleting(true);
+    onError(null);
+    const res = await fetch(`/api/meetings/${meeting.id}`, { method: 'DELETE' });
+    if (res.ok) {
+      router.push('/');
+      router.refresh();
+      return;
+    }
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    onError(data.error ?? 'Could not delete the meeting.');
+    setDeleting(false);
+  }
 
   async function patch(body: { title?: string; template?: MeetingTemplate }) {
     onError(null);
@@ -69,6 +86,9 @@ export function MeetingHeader({ meeting, onError }: { meeting: HeaderMeeting; on
         disabled={meeting.status !== 'ready'}
         onChange={(template) => void patch({ template })}
       />
+      <Button size="sm" variant="outline" className="ml-auto" onClick={remove} disabled={deleting}>
+        {deleting ? 'Deleting…' : 'Delete'}
+      </Button>
     </div>
   );
 }
