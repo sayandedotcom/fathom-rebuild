@@ -4,7 +4,7 @@ A minimal, Fathom-style AI meeting assistant.
 
 ## What it does
 
-Upload a meeting recording (audio or video, up to 500MB and 2 hours), record one in the browser (your mic plus a shared meeting tab), or send a bot into a Google Meet call. Fanthom transcribes it with speaker labels, writes a summary with key moments, key points, decisions and action items (copyable as Markdown), and lets you ask questions about the meeting in a chat that cites timestamps. Every meeting is kept in a searchable library. A search hit links to the exact moment in the recording.
+Upload a meeting recording (audio or video, up to 500MB and 2 hours), record one in the browser (your mic plus a shared meeting tab), or send a bot into a Google Meet call. Fanthom transcribes it with speaker labels, writes a summary with key moments, key points, decisions and action items (copyable as Markdown), and lets you ask questions about the meeting in a chat that cites timestamps. Speakers can be renamed, and bot meetings are named from Google Meet automatically. You pick a summary template (General, Sales call, 1:1, Standup, Interview), untitled meetings get a title written by Claude, and meetings can be deleted along with their recording. Every meeting is kept in a searchable library. A search hit links to the exact moment in the recording.
 
 Core loop: **upload → diarized transcript → AI summary + action items → ask questions → find past meetings**.
 
@@ -58,6 +58,13 @@ GET /api/meetings/:id poll ─────────┴─► advanceMeeting �
 - **Limits:** the bot waits at most 10 minutes to be admitted. It is told to leave after 2 hours of recording, the same cap as uploads.
 - **Stuck copies:** if the function copying the audio dies, the meeting is marked failed after 6 minutes ("Copying the bot recording timed out."). Retry runs the copy again.
 
+### Speaker names, templates, titles
+
+- **Re-summarize:** renaming a speaker or changing a template regenerates the summary through `startResummarize`. It atomically claims `ready → summarizing` and then runs the normal `summarizeMeeting`. A change made while a summary is already running is saved, and no second summary starts.
+- **Automatic names for bot meetings:** before the first summary, Recall's speaker timeline (who spoke when, with Meet display names) is matched to AssemblyAI's "Speaker A/B". Each letter takes the participant it overlaps most, but only when that participant covers at least half of the letter's talk time. If the timeline is missing, the letters are kept.
+- **Templates:** each template adds its own instructions and fixed section headings to the summary prompt. Claude leaves a section empty rather than invent content, and empty sections are hidden.
+- **Titles:** an empty title is stored as "Untitled meeting" and replaced by the summary's title. A title the user typed or edited is never overwritten.
+
 ## Local setup
 
 ```bash
@@ -92,4 +99,4 @@ npm test                    # vitest: pure transcript, search and validation hel
 - Persisted chat history, and editable, shareable action items
 - Integrations: Slack or email recaps, CRM notes, calendar-based naming
 - Auth and per-user libraries
-- Meet bot: scheduled and calendar auto-join, Zoom/Teams links (Recall supports them), real participant names from Recall
+- Meet bot: scheduled and calendar auto-join, Zoom/Teams links (Recall supports them)
